@@ -22,7 +22,11 @@ import {
 } from '../../../rainbow32/src/audioUtils';
 import { download, sleep } from '../../../rainbow32/src/utils';
 import globals from './globals';
-import { loadGameByContents, onLoad, unload } from '../../../rainbow32/src/index';
+import {
+    loadGameByContents,
+    onLoad,
+    unload,
+} from '../../../rainbow32/src/index';
 import { getCode } from './newCode';
 import _default from '../../../rainbow32/src/fonts/default';
 
@@ -122,13 +126,13 @@ function textButton(
 }
 
 let lastSelected:
-    | ''
+    | 'compiled'
     | 'draw'
     | 'mask'
     | 'music'
     | 'keybinds'
     | 'editor'
-    | 'data' = '';
+    | 'data' = 'draw';
 
 declare var require: any;
 declare var monaco: any;
@@ -139,6 +143,8 @@ let editorPostInit = () => {};
 let getImages: () => Record<string, string> = () => ({});
 let getMasks: () => Record<string, string> = getImages;
 let getAudios: () => Record<string, string> = getImages;
+let compileAndPopup = () => {};
+let compileAndDownload = () => {};
 
 type Requestify<T extends Record<string, any>> = {
     [K in keyof T]: T[K] extends Uint8Array ? number[] : T[K];
@@ -269,6 +275,12 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
                 alert('' + e);
             }
         },
+        test() {
+            compileAndPopup();
+        },
+        compile() {
+            compileAndDownload();
+        },
     };
 
 function closeX() {
@@ -348,9 +360,13 @@ function createNotification(title: string, description: string, color: string) {
     xBtn.addEventListener('click', () => notification.remove());
 }
 async function openImagePopup(url: string) {
+    if (lastSelected === 'compiled') return;
+    const _selected = lastSelected;
+    lastSelected = 'compiled';
     const popup = document.createElement('div');
     popup.classList.add('game-popup');
-    popup.style.zIndex = '5';
+    popup.classList.add('ignore');
+    popup.style.zIndex = '5000';
     popup.style.position = 'absolute';
     popup.style.width = '100%';
     popup.style.height = '100%';
@@ -387,7 +403,7 @@ async function openImagePopup(url: string) {
     });
 
     async function close() {
-        await unload();
+        lastSelected = _selected;
         document.body.style.overflow = 'visible';
         popup.remove();
         svg.removeEventListener('click', close);
@@ -411,9 +427,13 @@ async function openImagePopup(url: string) {
     return popup;
 }
 function openPopup(code: string) {
+    if (lastSelected === 'compiled') return;
+    const _selected = lastSelected;
+    lastSelected = 'compiled';
     const popup = document.createElement('div');
     popup.classList.add('game-popup');
-    popup.style.zIndex = '5';
+    popup.classList.add('ignore');
+    popup.style.zIndex = '5000';
     popup.style.position = 'absolute';
     popup.style.width = '100%';
     popup.style.height = '100%';
@@ -457,6 +477,7 @@ function openPopup(code: string) {
     });
 
     async function close() {
+        lastSelected = _selected;
         await unload();
         document.body.style.overflow = 'visible';
         popup.remove();
@@ -484,14 +505,10 @@ function openPopup(code: string) {
     return popup;
 }
 
-const minimized: Record<string, boolean> = {};
 function setupDrawing() {
     const drawElement = document.getElementsByClassName('draw')[0];
     if (!drawElement || !(drawElement instanceof HTMLDivElement)) return;
-    drawElement.addEventListener(
-        'mousedown',
-        () => !minimized.draw && (lastSelected = 'draw')
-    );
+    drawElement.addEventListener('mousedown', () => (lastSelected = 'draw'));
 
     const palette = makePalette(true, 0);
     drawElement.append(h('h2', {}, [text('Drawing tool')]), palette);
@@ -590,7 +607,7 @@ function setupDrawing() {
     const dataEl = h(
         'textarea',
         {
-            style: 'font-family: monospace;',
+            style: 'font-family: var(--font);',
             class: 'img-data-input',
         },
         []
@@ -690,10 +707,7 @@ function setupDrawing() {
 function setupMasking() {
     const maskingDiv = document.getElementsByClassName('mask')[0];
     if (!maskingDiv) return;
-    maskingDiv.addEventListener(
-        'mousedown',
-        () => !minimized.mask && (lastSelected = 'mask')
-    );
+    maskingDiv.addEventListener('mousedown', () => (lastSelected = 'mask'));
 
     let width = 16;
     let height = 16;
@@ -755,7 +769,7 @@ function setupMasking() {
     const dataEl = h(
         'textarea',
         {
-            style: 'font-family: monospace;',
+            style: 'font-family: var(--font);',
             class: 'mask-data-input',
         },
         []
@@ -763,7 +777,7 @@ function setupMasking() {
     const dataEl1 = h(
         'textarea',
         {
-            style: 'font-family: monospace;',
+            style: 'font-family: var(--font);',
             cols: '17',
             rows: '17',
         },
@@ -885,10 +899,7 @@ function setupMasking() {
 function setupMusic() {
     const element = document.getElementsByClassName('music')[0];
     if (!element) return;
-    element.addEventListener(
-        'mousedown',
-        () => !minimized.music && (lastSelected = 'music')
-    );
+    element.addEventListener('mousedown', () => (lastSelected = 'music'));
 
     element.append(h('h2', {}, [text('Music editor')]));
     const lengthInput = h(
@@ -946,7 +957,7 @@ function setupMusic() {
     const dataOutEl = h(
         'textarea',
         {
-            style: 'margin:0 .5rem;flex-grow:1;height:5rem;font-family: monospace;',
+            style: 'margin:0 .5rem;flex-grow:1;height:5rem;font-family: var(--font);',
             class: 'audio-data-input',
         },
         []
@@ -1317,6 +1328,7 @@ function setupMusic() {
         else octaveDown.removeAttribute('disabled');
         if (currentOctave === 8) octaveUp.setAttribute('disabled', '');
         else octaveUp.removeAttribute('disabled');
+        instrumentSelector.value = instruments[channel - 1];
         updateDataOut();
     }
 
@@ -1334,6 +1346,7 @@ function setupMusic() {
 
         instruments[channel - 1] = (instrumentSelector.value ||
             'square-wave') as 'square-wave';
+        updateNote();
     });
 
     clearBtnCur.addEventListener('click', () => {
@@ -1627,17 +1640,14 @@ function setupMusic() {
 function setupEditor() {
     const element = document.getElementsByClassName('editor')[0];
     if (!element) return;
-    element.addEventListener(
-        'mousedown',
-        () => !minimized.editor && (lastSelected = 'editor')
-    );
+    element.addEventListener('mousedown', () => (lastSelected = 'editor'));
     const compileBtn = textButton({}, [text('Compile')]);
     const downloadBtn = textButton({}, [text('Download')]);
     const saveBtn = textButton({}, [text('Save')]);
     const saveText = h('h4', { style: 'margin-right: .25rem;color: #a3a3a3' }, [
         text('Changes Saved'),
     ]);
-    const loadingText = h('h2', { style: 'font-family: sans-serif' }, [
+    const loadingText = h('h2', { style: 'font-family: var(--font)' }, [
         text('Loading...'),
     ]);
     const editor = h('div', { class: 'meditor' }, [loadingText]);
@@ -1656,7 +1666,7 @@ function setupEditor() {
     (require as any)(['vs/editor/editor.main'], function () {
         try {
             let compiling = false;
-            const compileBtnEvent = async () => {
+            compileAndPopup = async () => {
                 if (compiling) return;
                 compiling = true;
                 compileBtn.setAttribute('disabled', '');
@@ -1732,7 +1742,6 @@ function setupEditor() {
                             );
                             return;
                         } else {
-                            lastSelected = '';
                             openPopup(val);
                         }
                     })
@@ -1742,8 +1751,8 @@ function setupEditor() {
                 downloadBtn.removeAttribute('disabled');
                 compiling = false;
             };
-            compileBtn.addEventListener('click', compileBtnEvent);
-            const downloadBtnEvent = async () => {
+            compileBtn.addEventListener('click', compileAndPopup);
+            compileAndDownload = async () => {
                 if (compiling) return;
                 compiling = true;
                 compileBtn.setAttribute('disabled', '');
@@ -1827,7 +1836,7 @@ function setupEditor() {
                 downloadBtn.removeAttribute('disabled');
                 compiling = false;
             };
-            downloadBtn.addEventListener('click', downloadBtnEvent);
+            downloadBtn.addEventListener('click', compileAndDownload);
 
             const monacoEditor = monaco.editor.create(editor, {
                 language: 'typescript',
@@ -1861,12 +1870,12 @@ function setupEditor() {
             });
             monacoEditor.addAction({
                 id: 'download',
-                run: downloadBtnEvent,
+                run: compileAndDownload,
                 label: 'Download Compiled Game',
             });
             monacoEditor.addAction({
                 id: 'compile',
-                run: compileBtnEvent,
+                run: compileAndPopup,
                 label: 'Compile Code',
             });
 
@@ -1951,10 +1960,7 @@ function setupEditor() {
 function setupDataManager() {
     const element = document.getElementsByClassName('data')[0];
     if (!element) return;
-    element.addEventListener(
-        'mousedown',
-        () => !minimized.data && (lastSelected = 'data')
-    );
+    element.addEventListener('mousedown', () => (lastSelected = 'data'));
 
     let images: Record<string, string> = {};
     let masks: Record<string, string> = {};
@@ -2228,10 +2234,15 @@ function setupMenu() {
     topbar.addEventListener('click', (ev) => {
         if (
             !(ev.target instanceof HTMLDivElement) ||
-            !ev.target.classList.contains('button-menu') ||
-            !ev.target.hasAttribute('data-menu')
+            (!ev.target.classList.contains('button-menu') &&
+                !ev.target.hasAttribute('data-menu') &&
+                !ev.target.hasAttribute('data-tab'))
         )
             return;
+        if (ev.target.dataset.tab) {
+            lastSelected = ev.target.dataset.tab as 'data';
+            return;
+        }
         const item = ev.target.dataset.menu;
         if (!item) return;
         return menuActions[item]?.(ev, ev.target);
@@ -2253,6 +2264,17 @@ function setupMenu() {
                 .then(() => location.reload());
         }
     });
+    const tabs = Object.values(
+        document.querySelectorAll('[data-tab]')
+    ) as HTMLDivElement[];
+    function render() {
+        for (let i = 0; i < tabs.length; ++i)
+            if (tabs[i].dataset.tab === lastSelected)
+                tabs[i].classList.add('selected');
+            else tabs[i].classList.remove('selected');
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
 }
 window.addEventListener('load', () => {
     setupDrawing();
@@ -2271,10 +2293,7 @@ window.addEventListener('load', () => {
     }
     document.body
         .getElementsByClassName('keybinds')[0]
-        ?.addEventListener(
-            'mousedown',
-            () => !minimized.keybinds && (lastSelected = 'keybinds')
-        );
+        ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));
     function render() {
         for (let i = 0; i < document.body.children.length; ++i) {
             if (!document.body.children[i].hasAttribute('data-name')) continue;
@@ -2288,42 +2307,6 @@ window.addEventListener('load', () => {
         requestAnimationFrame(render);
     }
     requestAnimationFrame(render);
-    window.addEventListener('mousedown', (ev) =>
-        ev.target === document.body || ev.target === document.children[0]
-            ? (lastSelected = '')
-            : null
-    );
-    const windows = document.body.children;
-    for (let i = 0; i < windows.length; ++i) {
-        if (
-            windows[i].classList.contains('ignore') ||
-            windows[i].children.length < 1
-        )
-            continue;
-        const key = windows[i].getAttribute('data-name');
-        if (!key) continue;
-        minimized[key] = false;
-        windows[i].addEventListener('dblclick', (ev) => {
-            if (ev.target !== windows[i]) return;
-            windows[i].classList.toggle('minimized');
-            minimized[key] = !minimized[key];
-            if (!minimized[key]) lastSelected = key as any;
-            else lastSelected = '';
-        });
-        for (let j = 0; j < windows[i].children.length; ++j)
-            if (
-                (windows[i].children[j].tagName[0] === 'H' && j === 0) ||
-                windows[i].children[j].classList.contains('el-titlebar')
-            ) {
-                windows[i].children[j].addEventListener('dblclick', () => {
-                    windows[i].classList.toggle('minimized');
-                    minimized[key] = !minimized[key];
-                    if (!minimized[key]) lastSelected = key as any;
-                    else lastSelected = '';
-                });
-                break;
-            }
-    }
 });
 
 window.addEventListener('keydown', (ev) => {
@@ -2335,6 +2318,10 @@ window.addEventListener('keydown', (ev) => {
         menuActions.load(ev as any, undefined as any);
     if (ev.key === 'e' && ev.ctrlKey)
         menuActions.export(ev as any, undefined as any);
+    if (ev.key === 't' && ev.altKey && !ev.ctrlKey)
+        menuActions.test(ev as any, undefined as any);
+    if (ev.key === 't' && ev.altKey && ev.ctrlKey)
+        menuActions.compile(ev as any, undefined as any);
 });
 
 function awaitLoad(el: HTMLImageElement): Promise<void> {

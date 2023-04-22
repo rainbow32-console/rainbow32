@@ -236,7 +236,8 @@ export function makeTextBtn(text: string): HTMLDivElement {
 let done = false;
 let onUnload: (() => void)[] = [];
 
-export function unload() {
+export async function unload() {
+    await stopGame();
     for (const fn of onUnload) fn();
     onUnload = [];
     for (const btn of buttonIds) (buttonElements[btn] as any) = undefined;
@@ -245,7 +246,6 @@ export function unload() {
 
     if (frame?.isConnected) frame.remove();
     currentGame = null;
-    stopGame();
     done = false;
 }
 
