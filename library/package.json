@@ -1,0 +1,19 @@
+{
+    "name": "rainbow32-lib",
+    "main": "index.js",
+    "description": "The library for the rainbow32 console",
+    "version": "1.0.2",
+    "scripts": {
+        "build": "tsc && cp ./package.json ./dist/package.json && cp ./README.md ./dist/README.md"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rainbow32-console/main.git"
+    },
+    "bugs": {
+        "url": "https://github.com/rainbow32-console/main/issues"
+    },
+    "homepage": "https://github.com/rainbow32-console/main#readme",
+    "author": "FishingHacks"
+}

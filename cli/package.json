@@ -1,0 +1,27 @@
+{
+  "name": "rainbow32",
+  "version": "1.0.2",
+  "description": "A simple cli for rainbow32",
+  "bin": "index.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@futils/commandline": "^1.0.0",
+    "@types/express": "^4.17.17",
+    "@types/inquirer": "^9.0.3",
+    "@types/node": "^18.15.11",
+    "chalk": "^4.0.0",
+    "esbuild": "^0.17.16",
+    "express": "^4.18.2",
+    "inquirer": "^8.0.0",
+    "node-watch": "^0.7.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rainbow32-console/cli.git"
+  }
+}

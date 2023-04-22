@@ -1,0 +1,7 @@
+lockfileVersion: 5.4
+
+specifiers:
+  library: ../library/dist
+
+dependencies:
+  library: link:../library/dist

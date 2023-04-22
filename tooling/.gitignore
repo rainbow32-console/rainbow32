@@ -1,0 +1,5 @@
+node_modules/
+dist/
+toolings.js
+game.ts
+game.js

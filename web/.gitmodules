@@ -1,0 +1,3 @@
+[submodule "rainbow32"]
+	path = rainbow32
+	url = git@github.com:rainbow32-console/rainbow32.git

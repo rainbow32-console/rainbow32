@@ -1,0 +1,20 @@
+import { audioUtils } from './index';
+export type { Audio, Instrument, gfxInstrument, Sound, SoundFunction, AudioUtils } from './index';
+
+export const getFrequency = audioUtils.getFrequency;
+export const getInstrumentSoundFunction = audioUtils.getInstrumentSoundFunction;
+export const getSound = audioUtils.getSound;
+export const parseAudio = audioUtils.parseAudio;
+export const playNoise = audioUtils.playNoise;
+export const playAudio = audioUtils.playAudio;
+export const playSawtoothTune = audioUtils.playSawtoothTune;
+export const playSineTune = audioUtils.playSineTune;
+export const playSound = audioUtils.playSound;
+export const playSquareTune = audioUtils.playSquareTune;
+export const playTriangleTune = audioUtils.playTriangleTune;
+export const playTune = audioUtils.playTune;
+export const serializeAudio = audioUtils.serializeAudio;
+export const soundToUint8 = audioUtils.soundToUint8;
+export const unserializeAudio = audioUtils.unserializeAudio;
+export const validInstruments = audioUtils.validInstruments;
+export const validNotes = audioUtils.validNotes;

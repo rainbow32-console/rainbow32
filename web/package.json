@@ -1,0 +1,6 @@
+{
+	"scripts": {
+		"watch": "esbuild --watch --bundle --outdir=./dist --minify --sourcemap ./src/index.ts",
+		"build": "esbuild --bundle --outdir=./dist --minify --sourcemap ./src/index.ts"
+	}
+}
