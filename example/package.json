@@ -5,6 +5,6 @@
     "dev": "rainbow32 dev"
   },
   "dependencies": {
-    "library": "./library/dist"
+    "library": "../library/dist"
   }
 }

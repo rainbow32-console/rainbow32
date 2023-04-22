@@ -10,7 +10,7 @@ import {
     square,
     stringifyImage,
     stringifyMask,
-} from '../../rainbow32/src/imageUtils';
+} from '../../../rainbow32/src/imageUtils';
 import { imageDataURI } from './img';
 import {
     Audio,
@@ -19,12 +19,12 @@ import {
     parseAudio,
     playSound,
     Sound,
-} from '../../rainbow32/src/audioUtils';
-import { download, sleep } from '../../rainbow32/src/utils';
+} from '../../../rainbow32/src/audioUtils';
+import { download, sleep } from '../../../rainbow32/src/utils';
 import globals from './globals';
-import { loadGameByContents, onLoad, unload } from '../../rainbow32/src/index';
+import { loadGameByContents, onLoad, unload } from '../../../rainbow32/src/index';
 import { getCode } from './newCode';
-import _default from '../../rainbow32/src/fonts/default';
+import _default from '../../../rainbow32/src/fonts/default';
 
 function text(text: string): Text {
     return document.createTextNode(text);

@@ -4,7 +4,7 @@ import {
     Rainbow32ConsoleElementGeneratorOptions,
     Rainbow32ConsoleElements,
     registerEvent,
-} from '../rainbow32/src/index';
+} from '../../rainbow32/src/index';
 
 let gameTitleH1: HTMLHeadingElement;
 
