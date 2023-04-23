@@ -93,5 +93,5 @@ async function generateRouter() {
         { cwd: __dirname }
     ).output.forEach((el) => (!el ? null : process.stdout.write(el)));
     console.log('\n');
-    // await rm(join(__dirname, 'packaged.ts'));
+    await rm(join(__dirname, 'packaged.ts'));
 })();

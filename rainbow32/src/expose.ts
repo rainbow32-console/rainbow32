@@ -14,10 +14,13 @@ import { download, isOnTimeout, timeout } from './utils';
 import {
     addCharacterMask,
     applyCharacterMap,
+    calculateBounds,
+    calculateWidth,
     clearCharacterMap,
     currentTextMasks,
     writeText,
 } from './text';
+import { addParticle, removeParticle } from './particleSystem';
 
 function expose(name: string, variable: any) {
     (globalThis as any)[name] = variable;
@@ -29,7 +32,7 @@ export function exposeToWorld() {
         default_monospace,
         legacy,
     };
-    
+
     expose('fonts', fonts);
     expose('imageUtils', imageUtils);
     expose(
@@ -60,4 +63,8 @@ export function exposeToWorld() {
     expose('isOnTimeout', isOnTimeout);
     expose('timeout', timeout);
     expose('audioUtils', audioUtils);
+    expose('calculateBounds', calculateBounds);
+    expose('calculateWidth', calculateWidth);
+    expose('addParticle', addParticle);
+    expose('removeParticle', removeParticle);
 }

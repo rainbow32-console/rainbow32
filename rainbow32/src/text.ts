@@ -3,39 +3,143 @@ import {
     applyImageMask,
     ColorPalette,
     ImageMask,
-    imgToImageData,
-    parseImage,
     parseMask,
-    blendImageDataR,
+    putImage,
+    putImageRaw,
     square,
 } from './imageUtils';
 
 export const currentTextMasks = { ...charmap };
 
+interface Line {
+    y: number;
+    start: number;
+    end: number;
+}
+
+export function calculateBounds(
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    {
+        spaceWidth,
+        centered = false,
+    }: { spaceWidth?: number; centered?: boolean } = {}
+): Line[] {
+    const lines: Line[] = [];
+    let origX = x;
+    spaceWidth ||= 5;
+
+    const maxLength = Math.min(maxWidth - x, calculateWidth(text, spaceWidth));
+    const linePadLeft = centered
+        ? text
+              .split('\n')
+              .map((el) =>
+                  Math.floor((calculateWidth(el, spaceWidth!) - maxLength) / 2)
+              )
+        : [];
+
+    spaceWidth++;
+
+    if (linePadLeft[0] && centered) x += linePadLeft[0];
+    let line = 0;
+
+    let lineLength = 0;
+    for (let i = 0; i < text.length; ++i) {
+        if (x > maxWidth || text[i] === '\n') {
+            lines.push({
+                y,
+                start: origX + (linePadLeft[line] || 0),
+                end: origX + (linePadLeft[line] || 0) + lineLength - 1,
+            });
+            x = origX;
+            if (centered && linePadLeft[++line]) x += linePadLeft[line];
+            y += 6;
+            if (text[i] === '\n') continue;
+        }
+        if (text[i] === ' ') {
+            lineLength += spaceWidth;
+            x += spaceWidth;
+            continue;
+        }
+        const mask = currentTextMasks[text[i].toLowerCase()];
+        if (!mask) {
+            lineLength += 6;
+            x += 6;
+            continue;
+        }
+        lineLength += mask.width + 1;
+        x += mask.width + 1;
+    }
+
+    lines.push({ y, start: origX, end: origX + lineLength - 1 });
+    return lines;
+}
+export function calculateWidth(text: string, spaceWidth?: number): number {
+    let maxLineWidth = 0;
+    spaceWidth ||= 5;
+    spaceWidth++;
+
+    let lineLength = 0;
+    for (let i = 0; i < text.length; ++i) {
+        if (text[i] === '\n') {
+            if (lineLength > maxLineWidth) maxLineWidth = lineLength;
+            lineLength = 0;
+            continue;
+        }
+        if (text[i] === ' ') {
+            lineLength += spaceWidth;
+            continue;
+        }
+        const mask = currentTextMasks[text[i].toLowerCase()];
+        if (!mask) {
+            lineLength += 6;
+            continue;
+        }
+        lineLength += mask.width + 1;
+    }
+
+    if (lineLength > maxLineWidth) return lineLength;
+    else return maxLineWidth;
+}
+
 export function writeText(
     text: string,
-    ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     maxWidth: number,
     {
         background,
         color,
-        palette,
         spaceWidth,
+        centered = false,
     }: {
-        palette?: ColorPalette;
         color?: number;
         background?: number;
         spaceWidth?: number;
+        centered?: boolean;
     } = {}
-): { y: number; start: number; end: number }[] {
+): Line[] {
     spaceWidth ||= 5;
-    spaceWidth++;
     const lines: { y: number; start: number; end: number }[] = [];
 
+    const maxLength = Math.min(maxWidth - x, calculateWidth(text, spaceWidth));
+    const linePadLeft = centered
+        ? text.split('\n').map((el) => {
+              console.log(calculateWidth(el, spaceWidth!), maxLength);
+              return Math.floor(
+                  (maxLength - calculateWidth(el, spaceWidth!)) / 2
+              );
+          })
+        : [];
+    x -= Math.floor(maxLength / 2);
+    spaceWidth++;
+
+    let line = 0;
     color ||= 0;
     let origX = x;
+    if (centered && linePadLeft[0]) x += linePadLeft[0];
     const images = [
         square(1, 5, color),
         square(2, 5, color),
@@ -45,49 +149,32 @@ export function writeText(
     ];
     const bg =
         typeof background === 'number'
-            ? ([
-                  imgToImageData(square(1, 5, background)),
-                  imgToImageData(square(2, 5, background)),
-                  imgToImageData(square(3, 5, background)),
-                  imgToImageData(square(4, 5, background)),
-                  imgToImageData(square(5, 5, background)),
-              ] as ImageData[])
+            ? [
+                  square(1, 5, background),
+                  square(2, 5, background),
+                  square(3, 5, background),
+                  square(4, 5, background),
+                  square(5, 5, background),
+              ]
             : null;
     const bgLine =
-        typeof background === 'number'
-            ? imgToImageData(square(1, 5, background))
-            : null;
+        typeof background === 'number' ? square(1, 5, background) : null;
 
     let lineLength = 0;
 
     for (let i = 0; i < text.length; ++i) {
         if (x > maxWidth || text[i] === '\n') {
-            lines.push({
-                y,
-                start: origX,
-                end: origX + lineLength - 1,
-            });
+            lines.push({ y, start: origX, end: origX + lineLength - 1 });
             x = origX;
+            if (linePadLeft[++line]) x += linePadLeft[line];
             y += 6;
             if (background && lineLength > 0)
-                ctx.putImageData(
-                    imgToImageData(
-                        square(lineLength, 1, background)
-                    ) as ImageData,
-                    x,
-                    y - 1
-                );
+                putImageRaw(x, y - 1, square(lineLength, 1, background));
             lineLength = 0;
-            if (text[i] === '\n') {
-                continue;
-            }
+            if (text[i] === '\n') continue;
         }
         if (text[i] === ' ' && bg) {
-            ctx.putImageData(
-                imgToImageData(square(7, 5, background || 0)) as ImageData,
-                x - 1,
-                y
-            );
+            putImageRaw(x - 1, y, square(7, 5, background || 0));
         }
         if (text[i] === ' ') {
             lineLength += spaceWidth;
@@ -96,13 +183,7 @@ export function writeText(
         }
         const mask = currentTextMasks[text[i].toLowerCase()];
         if (!mask && bg) {
-            ctx.putImageData(
-                imgToImageData(
-                    parseImage('6:5:' + background?.toString(32).repeat(35))
-                ) as ImageData,
-                x,
-                y
-            );
+            putImageRaw(x, y, square(6, 5, background || 0));
         }
         if (!mask) {
             lineLength += 6;
@@ -110,13 +191,12 @@ export function writeText(
             console.log('Text: No mask found for "%s"', text[i]);
             continue;
         }
-        const data = imgToImageData(
-            applyImageMask(images[mask.width - 1], mask),
-            palette
-        );
-        if (data && bg) blendImageDataR(bg[mask.width - 1], data);
-        if (data) ctx.putImageData(data, x, y);
-        if (bgLine && lineLength > 0) ctx.putImageData(bgLine, x - 1, y);
+        const image = applyImageMask(images[mask.width - 1], mask);
+        if (image && bg) {
+            putImageRaw(x, y, bg[mask.width - 1]);
+            putImage(x, y, image);
+        } else if (image) putImageRaw(x, y, image);
+        if (bgLine && lineLength > 0) putImageRaw(x - 1, y, bgLine);
         lineLength += mask.width + 1;
         x += mask.width + 1;
     }

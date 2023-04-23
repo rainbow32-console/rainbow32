@@ -1,3 +1,4 @@
+import { debugData, isCollectingDebugData } from '.';
 import { ImageRenderer } from './components/imageRenderer';
 import { Image, ImageMask, parseImage, parseMask } from './imageUtils';
 
@@ -25,12 +26,7 @@ export interface Transform {
 
 export interface Component<Config = void> {
     init(config: Partial<Config> | undefined, gameObject: GameObject): Config;
-    update?(
-        config: Config,
-        dt: number,
-        ctx: CanvasRenderingContext2D,
-        gameObject: GameObject
-    ): void;
+    update?(config: Config, dt: number, gameObject: GameObject): void;
     remove?(config: Config, gameObject: GameObject): void;
     readonly name: string;
 }
@@ -137,15 +133,16 @@ export class GameObject {
             this.addComponents([{ component: ImageRenderer }]);
     }
 
-    render(dt: number, ctx: CanvasRenderingContext2D) {
+    render(dt: number) {
         if (!this.active) return;
+        if (isCollectingDebugData)
+            debugData['Update State'] = 'GameObject::' + this.name;
 
         let keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
             this.components[keys[i]]?.update?.(
                 this.componentData[keys[i]],
                 dt,
-                ctx,
                 this
             );
     }

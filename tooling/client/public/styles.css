@@ -27,8 +27,9 @@ body > div:not(.ignore) {
     border: 1px solid white;
     padding: 7px;
     display: none;
-    width: 100%;
-    min-height: calc(100vh - 2rem - 36px);
+    min-width: calc(100vw - 34px);
+    overflow: auto;
+    height: calc(100vh - 2rem - 36px);
 }
 body > div:not(.ignore).active {
     display: unset;
@@ -132,8 +133,9 @@ textarea {
     border: 3px solid white;
 }
 .paintCanvas {
+    --scale-factor: 1;
     image-rendering: pixelated;
-    width: 25rem;
+    min-width: calc(25rem * var(--scale-factor));
     background-color: #fffa;
 }
 
@@ -233,13 +235,6 @@ kbd {
 .meditor,
 .meditor * {
     font-family: pixeloid, monospace;
-}
-
-body > div:not(.ignore) .line {
-    width: 100%;
-    margin: 0 -7px;
-    padding: 0 7px;
-    border-bottom: 1px solid white;
 }
 
 body > div .line {

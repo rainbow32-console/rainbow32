@@ -1,20 +1,11 @@
+import { debugData, isCollectingDebugData } from '.';
 import { GameObject } from './gameObject';
 
 export interface UserScene<T> {
     beforeInit(scene: Scene<T>): T;
     afterInit?(config: T, scene: Scene<T>): void;
-    beforeUpdate?(
-        config: T,
-        scene: Scene<T>,
-        dt: number,
-        ctx: CanvasRenderingContext2D
-    ): void;
-    afterUpdate?(
-        config: T,
-        scene: Scene<T>,
-        dt: number,
-        ctx: CanvasRenderingContext2D
-    ): void;
+    beforeUpdate?(config: T, scene: Scene<T>, dt: number): void;
+    afterUpdate?(config: T, scene: Scene<T>, dt: number): void;
     beforeRemove?(config: T, scene: Scene<T>): void;
     afterRemove?(config: T, scene: Scene<T>): void;
     gameObjects: GameObject[];
@@ -48,15 +39,19 @@ export class Scene<T extends Record<string, any>> {
         this.config = {} as any;
     }
 
-    update(dt: number, ctx: CanvasRenderingContext2D) {
-        this.uScene.beforeUpdate?.(this.config, this, dt, ctx);
+    update(dt: number) {
+        this.uScene.beforeUpdate?.(this.config, this, dt);
         for (let i = 0; i < this.objects.length; ++i)
-            this.objects[i].render(dt, ctx);
-        this.uScene.afterUpdate?.(this.config, this, dt, ctx);
+            this.objects[i].render(dt);
+        this.uScene.afterUpdate?.(this.config, this, dt);
     }
 
     addObject(obj: GameObject) {
         this.objects.push(obj);
+    }
+
+    objectAmount(): number {
+        return this.objects.length;
     }
 }
 
@@ -94,8 +89,15 @@ export const SceneManager = {
             scenes[currentlySelected]?.init();
         }
     },
-    update(dt: number, ctx: CanvasRenderingContext2D) {
-        scenes[currentlySelected]?.update(dt, ctx);
+    update(dt: number) {
+        if (isCollectingDebugData) debugData['Update State'] = 'Scene'
+        scenes[currentlySelected]?.update(dt);
+        if (!isCollectingDebugData) return;
+        debugData['Current Scene'] = scenes[currentlySelected]
+            ? scenes[currentlySelected].name
+            : 'None';
+        debugData['#Game Objects'] =
+            scenes[currentlySelected]?.objectAmount().toString() || '0';
     },
     getScene<T>(): Scene<T> | undefined {
         return scenes[currentlySelected];

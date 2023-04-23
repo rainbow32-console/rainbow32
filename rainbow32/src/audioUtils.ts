@@ -301,6 +301,10 @@ function playTune(
     time: number,
     type: OscillatorType
 ): Promise<void> {
+    if (ctx.state !== 'running')
+        return new Promise((_, rej) =>
+            rej(new Error('Audiocontext is closed!'))
+        );
     const node = new OscillatorNode(ctx, {
         type,
         frequency: freq,
@@ -318,6 +322,10 @@ function playTune(
     return sleep(time * 1000);
 }
 function playNoise(vol: number, freq: number, time: number): Promise<void> {
+    if (ctx.state !== 'running')
+        return new Promise((_, rej) =>
+            rej(new Error('Audiocontext is closed!'))
+        );
     const bufferSize = ctx.sampleRate * time; // set the time of the note
 
     // Create an empty buffer
@@ -412,4 +420,12 @@ export async function playAudio(
 
         await sleep(timePerNote * 1000);
     }
+}
+
+export function unloadMusic() {
+    ctx.suspend();
+}
+
+export function loadMusic(): Promise<void> {
+    return ctx.resume();
 }

@@ -24,6 +24,18 @@ export const utils = {
     isOnTimeout: importExposed('isOnTimeout'),
     timeout: importExposed('timeout'),
 } as Utils;
+export const ParticleSystem = {
+    addParticle: importExposed('addParticle') as (
+        life: number,
+        pos: Vec2,
+        size: number,
+        color: number,
+        gravity: number,
+        force: Vec2,
+        oob?: boolean
+    ) => Particle,
+    removeParticle: importExposed('removeParticle') as (p: Particle) => void,
+};
 export const ImageRenderer = importExposed('ImageRenderer') as Component<void>;
 export const createComponent = importExposed('createComponent') as <T>(
     component: Component<T>,
@@ -75,6 +87,8 @@ export const TextUtils = {
     addCharacterMask: importExposed('addCharacterMask'),
     applyCharacterMap: importExposed('applyCharacterMap'),
     clearCharacterMap: importExposed('clearCharacterMap'),
+    calculateBounds: importExposed('calculateBounds'),
+    calculateWidth: importExposed('calculateWidth'),
 } as _TextUtils;
 
 /**
@@ -109,12 +123,7 @@ export interface Transform {
 
 export interface Component<Config = void> {
     init(config: Partial<Config> | undefined, gameObject: _GameObject): Config;
-    update?(
-        config: Config,
-        dt: number,
-        ctx: CanvasRenderingContext2D,
-        gameObject: _GameObject
-    ): void;
+    update?(config: Config, dt: number, gameObject: _GameObject): void;
     remove?(config: Config, gameObject: _GameObject): void;
     readonly name: string;
 }
@@ -135,18 +144,8 @@ export type ComponentEntry<T> = {
 export interface UserScene<T> {
     beforeInit(scene: _Scene): T;
     afterInit?(config: T, scene: _Scene): void;
-    beforeUpdate?(
-        config: T,
-        scene: _Scene,
-        dt: number,
-        ctx: CanvasRenderingContext2D
-    ): void;
-    afterUpdate?(
-        config: T,
-        scene: _Scene,
-        dt: number,
-        ctx: CanvasRenderingContext2D
-    ): void;
+    beforeUpdate?(config: T, scene: _Scene, dt: number): void;
+    afterUpdate?(config: T, scene: _Scene, dt: number): void;
     beforeRemove?(config: T, scene: _Scene): void;
     afterRemove?(config: T, scene: _Scene): void;
     gameObjects: _GameObject[];
@@ -208,7 +207,7 @@ export interface GameFile {
     bg: string;
 
     init?(): void;
-    update?(dt: number, ctx: CanvasRenderingContext2D): void;
+    update?(dt: number): void;
     remove?(): void;
     scenes?: _Scene[];
     defaultScene?: number;
@@ -231,35 +230,45 @@ export interface _GameObject {
     getComponent<T extends Component<any>>(component: string): T | undefined;
     remove(): void;
     init(): void;
-    render(dt: number, ctx: CanvasRenderingContext2D): void;
+    render(dt: number): void;
 }
 
 export interface _Scene {
     readonly name: string;
     init(): void;
     remove(): void;
-    update(dt: number, ctx: CanvasRenderingContext2D): void;
+    update(dt: number): void;
     addObject(obj: _GameObject): void;
 }
 export interface _SceneManager {
     setScenes(newScenes: _Scene[], defaultSelected?: number): void;
     addScene(scene: _Scene): void;
     changeScene(scene: string | number): void;
-    update(dt: number, ctx: CanvasRenderingContext2D): void;
+    update(dt: number): void;
     getScene<T>(): _Scene | undefined;
 }
 export interface _TextUtils {
-    writeText(
+    calculateBounds(
         text: string,
-        ctx: CanvasRenderingContext2D,
         x: number,
         y: number,
         maxWidth: number,
         options?: {
-            palette?: ColorPalette;
+            spaceWidth?: number;
+            centered?: boolean;
+        }
+    ): Line[];
+    calculateWidth(text: string, spaceWidth?: number): number;
+    writeText(
+        text: string,
+        x: number,
+        y: number,
+        maxWidth: number,
+        options?: {
             color?: number;
             background?: number;
             spaceWidth?: number;
+            centered?: boolean;
         }
     ): Line[];
     currentTextMasks: Font;
@@ -277,7 +286,6 @@ export interface ImageUtils {
         color: number,
         palette?: ColorPalette
     ): Record<'r' | 'g' | 'b' | 'a', number>;
-    imgToImageData(img: Image, palette?: ColorPalette): ImageData | null;
     applyImageMask(image: Image, mask: ImageMask): Image;
     applyImageMaskModifyImage(image: Image, mask: ImageMask): void;
     stringifyImage(img: Image): string;
@@ -286,14 +294,8 @@ export interface ImageUtils {
         image: Image,
         type?: 'image/png' | 'image/jpeg' | 'image/webp'
     ): string;
-    blendImageData(data1: ImageData, data2: ImageData): void;
-    blendImageDataR(data1: ImageData, data2: ImageData): void;
-    putImageData(
-        ctx: CanvasRenderingContext2D,
-        data: ImageData | null,
-        x: number,
-        y: number
-    ): void;
+    putImage(x: number, y: number, image: Image): void;
+    putImageRaw(x: number, y: number, image: Image): void;
     isValidColor(color: number): boolean;
     square(width: number, height: number, color: number | string): Image;
     circle(radius: number, color: number | string): Image;
@@ -346,7 +348,11 @@ export interface Sound {
     sound: 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
     halfToneStepUp: boolean;
 }
-export type SoundFunction = (vol: number, freq: number, time: number) => Promise<void>;
+export type SoundFunction = (
+    vol: number,
+    freq: number,
+    time: number
+) => Promise<void>;
 export interface AudioUtils {
     readonly validNotes: string[];
     readonly validInstruments: Instrument[];
@@ -400,4 +406,12 @@ export interface AudioUtils {
         time: number
     ): Promise<void>;
     playAudio(audio: Audio, timePerNote: number, vol: number): Promise<void>;
+}
+export interface Particle {
+    end: number;
+    pos: Vec2;
+    image: Image;
+    gravity: number;
+    force: Vec2;
+    fallsOOB: boolean;
 }

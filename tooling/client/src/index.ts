@@ -6,7 +6,6 @@ import {
     imgToImageData,
     parseImage,
     parseMask,
-    putImageData,
     square,
     stringifyImage,
     stringifyMask,
@@ -26,6 +25,7 @@ import {
     getDebugString,
     loadGameByContents,
     onLoad,
+    setDbgDataCollection,
     unload,
 } from '../../../rainbow32/src/index';
 import { getCode } from './newCode';
@@ -424,7 +424,7 @@ async function openImagePopup(url: string) {
     await awaitLoad(img as HTMLImageElement);
     return popup;
 }
-function openPopup(code: string) {
+async function openPopup(code: string) {
     if (lastSelected === 'compiled') return;
     const _selected = lastSelected;
     lastSelected = 'compiled';
@@ -513,7 +513,8 @@ function openPopup(code: string) {
     }
     window.addEventListener('keydown', keydown);
 
-    onLoad(popup, false);
+    await onLoad(popup, false);
+    setDbgDataCollection(true);
     popup.append(keybindsDiv);
     loadGameByContents(code);
     popup.getElementsByTagName('input').item(0)?.remove();
@@ -531,6 +532,7 @@ function setupDrawing() {
     let selected = 0;
     let width = 16;
     let height = 16;
+    let scaleFactor = 1;
     palette.addEventListener('click', (ev) => {
         if (
             !ev.target ||
@@ -548,6 +550,14 @@ function setupDrawing() {
     window.addEventListener('keydown', (ev) => {
         if (lastSelected !== 'draw' || ev.target instanceof HTMLTextAreaElement)
             return;
+        if ((ev.key === '+' || ev.key === '-') && ev.altKey) {
+            ev.preventDefault();
+            if (ev.key === '+') scaleFactor += 0.25;
+            else if (ev.key === '-' && scaleFactor > 1) scaleFactor -= 0.25;
+            canvas.setAttribute('style', '--scale-factor: ' + scaleFactor);
+
+            return;
+        }
         if (!ev.key.startsWith('Arrow')) return;
         ev.preventDefault();
         let delta =
@@ -616,6 +626,7 @@ function setupDrawing() {
             width: width.toString(),
             height: height.toString(),
             class: 'paintCanvas',
+            style: '--scale-factor: ' + scaleFactor,
         },
         []
     ) as HTMLCanvasElement;
@@ -727,6 +738,16 @@ function setupMasking() {
 
     let width = 16;
     let height = 16;
+    let scaleFactor = 1;
+    window.addEventListener('keydown', (ev) => {
+        if (lastSelected !== 'mask') return;
+        if ((ev.key === '+' || ev.key === '-') && ev.altKey) {
+            ev.preventDefault();
+            if (ev.key === '+') scaleFactor += 0.25;
+            else if (ev.key === '-' && scaleFactor > 1) scaleFactor -= 0.25;
+            canvas.setAttribute('style', '--scale-factor: ' + scaleFactor);
+        }
+    });
 
     const widthIn = h(
         'input',
@@ -778,6 +799,7 @@ function setupMasking() {
             width: width.toString(),
             height: height.toString(),
             class: 'paintCanvas',
+            style: '--scale-factor: ' + scaleFactor,
         },
         []
     ) as HTMLCanvasElement;
@@ -946,8 +968,11 @@ function setupMusic() {
     let length = 16;
 
     lengthInput.addEventListener('change', () => {
-        let newVal = Number(lengthInput.value);
-        if (!isFinite(newVal) || isNaN(newVal)) return;
+        let newVal = Math.floor(Number(lengthInput.value));
+        if (isNaN(newVal)) newVal = 16;
+        else if (newVal < 1) newVal = 1;
+        else if (newVal > 255) newVal = 255;
+        lengthInput.value = newVal.toString();
         if (newVal < 0) {
             lengthInput.value = '0';
             newVal = 0;
@@ -1144,7 +1169,7 @@ function setupMusic() {
             divs[3].append(node4);
         }
         updateDataOut();
-        return h('div', {}, divs);
+        return h('div', { style: 'width: fit-content' }, divs);
     }
 
     let currentlyRenderedDiv = render();
@@ -1566,6 +1591,25 @@ function setupMusic() {
             sharp = false;
             updateNote();
             ev.preventDefault();
+        } else if (ev.key === '+' || ev.key === '-') {
+            let newVal = Math.floor(Number(lengthInput.value));
+            if (isNaN(newVal)) newVal = 16;
+            else if (newVal < 1) newVal = 1;
+            else if (newVal > 255) newVal = 255;
+            if (ev.key === '-' && newVal > 1) newVal--;
+            else if (ev.key === '+' && newVal < 255) newVal++;
+            lengthInput.value = newVal.toString();
+
+            if (newVal < 0) {
+                lengthInput.value = '0';
+                newVal = 0;
+            }
+            if (newVal > 255) {
+                lengthInput.value = '255';
+                newVal = 255;
+            }
+            length = newVal;
+            rerender();
         }
     });
 
@@ -2346,6 +2390,11 @@ window.addEventListener(
             ev.ctrlKey &&
             (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')
         ) {
+            if (
+                ev.target instanceof HTMLInputElement ||
+                ev.target instanceof HTMLTextAreaElement
+            )
+                return;
             ev.preventDefault();
             ev.cancelBubble = true;
             let index = tabs.indexOf(lastSelected) + tabs.length;
@@ -2364,6 +2413,48 @@ function awaitLoad(el: HTMLImageElement): Promise<void> {
         el.addEventListener('load', () => res());
         el.addEventListener('error', rej);
     });
+}
+
+export function putImageData(
+    ctx: CanvasRenderingContext2D,
+    data: ImageData | null,
+    x: number,
+    y: number
+) {
+    if (!data) return;
+    const bgData = ctx.getImageData(x, y, data.width, data.height);
+    blendImageData(bgData, data);
+    ctx.putImageData(bgData, x, y);
+}
+
+export function blendImageData(data1: ImageData, data2: ImageData) {
+    if (data1.height !== data2.height || data1.width !== data2.width)
+        throw new Error('Width or height do not match between data1 and data2');
+
+    for (let h = 0; h < data1.height; ++h)
+        for (let w = 0; w < data1.width; ++w) {
+            const offset = (h * data1.width + w) * 4;
+            let r1 = data1.data[offset];
+            let g1 = data1.data[offset + 1];
+            let b1 = data1.data[offset + 2];
+
+            const r2 = data2.data[offset];
+            const g2 = data2.data[offset + 1];
+            const b2 = data2.data[offset + 2];
+            const a2 = data2.data[offset + 3];
+
+            r1 = (r1 * (255 - a2) + r2 * a2) / 255;
+            if (r1 > 255) r1 = 255;
+            g1 = (g1 * (255 - a2) + g2 * a2) / 255;
+            if (g1 > 255) g1 = 255;
+            b1 = (b1 * (255 - a2) + b2 * a2) / 255;
+            if (b1 > 255) b1 = 255;
+
+            data1.data[offset] = r1;
+            data1.data[offset + 1] = g1;
+            data1.data[offset + 2] = b1;
+            data1.data[offset + 3] = Math.max(a2, data1.data[offset + 3]);
+        }
 }
 
 function customWriteText(

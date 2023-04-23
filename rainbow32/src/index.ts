@@ -1,7 +1,16 @@
 // import game from './game/game';
+import { loadMusic, unloadMusic } from './audioUtils';
 import { canvasFullScreen, isFocused, show } from './electron';
 import { exposeToWorld } from './expose';
-import { ColorPalette, setCurrentPalette } from './imageUtils';
+import {
+    ColorPalette,
+    getColor,
+    getCurrentPalette,
+    isDirty,
+    removeDirtyMark,
+    setCurrentPalette,
+} from './imageUtils';
+import { updateParticles } from './particleSystem';
 import { Scene, SceneManager } from './SceneManager';
 import { download } from './utils';
 
@@ -17,7 +26,9 @@ export const buttonIds: Readonly<Button[]> = [
     'p',
 ];
 
-export const memory: Uint8Array = new Uint8Array(1);
+export const WIDTH = 200;
+export const HEIGHT = 180;
+export const memory: Uint8Array = new Uint8Array(1 + WIDTH * HEIGHT);
 export function isPressed(button: Button): boolean {
     const id = buttonIds.indexOf(button);
     if (id === -1) return false;
@@ -37,6 +48,11 @@ export function changeButtonState(value: boolean, button: Button) {
         buttonElements[button].style.backgroundColor = value
             ? '#15803d'
             : '#171717';
+}
+
+export let isCollectingDebugData = false;
+export function setDbgDataCollection(value: boolean) {
+    isCollectingDebugData = value;
 }
 
 export const buttons: Record<Button, { down: boolean; press: boolean }> = {
@@ -96,7 +112,7 @@ export interface GameFile {
     bg: string;
 
     init?(): void;
-    update?(dt: number, ctx: CanvasRenderingContext2D): void;
+    update?(dt: number): void;
     remove?(): void;
     scenes?: Scene<any>[];
     defaultScene?: number;
@@ -126,13 +142,13 @@ window.addEventListener('keydown', (ev) => {
     else if (ev.key === 'Escape') {
         stopGame();
         if (canvasFullScreen()) return;
-        buttonElements.stop.classList.add('active');
-        setTimeout(() => buttonElements.stop.classList.remove('active'), 100);
+        buttonElements.stop?.classList.add('active');
+        setTimeout(() => buttonElements.stop?.classList.remove('active'), 100);
     } else if (ev.key === 'Enter') {
         startGame();
         if (canvasFullScreen()) return;
-        buttonElements.start.classList.add('active');
-        setTimeout(() => buttonElements.start.classList.remove('active'), 100);
+        buttonElements.start?.classList.add('active');
+        setTimeout(() => buttonElements.start?.classList.remove('active'), 100);
     }
 });
 window.addEventListener('keyup', (ev) => {
@@ -155,8 +171,6 @@ window.addEventListener('keyup', (ev) => {
 });
 
 let ctx: CanvasRenderingContext2D | null = null;
-export const WIDTH = 200;
-export const HEIGHT = 180;
 
 let previous = Date.now();
 
@@ -164,13 +178,17 @@ let pressedButtonsPreviously = new Uint8Array([0]);
 
 let stopNextRender = false;
 
+const renderTimes: number[] = [];
+
 function render(dt: number) {
+    for (let i = 0; i < WIDTH * HEIGHT; ++i) memory[i + 1] = 0xff;
     const start = Date.now();
     if (stopNextRender || !frame || !frame.isConnected || !done)
         return (stopNextRender = false);
     if (!currentGame) return;
     callEvent('beforeRender', [ctx, dt - previous]);
 
+    if (isCollectingDebugData) debugData['Update State'] = 'Buttons';
     for (let i = 0; i < buttonIds.length; i++)
         buttons[buttonIds[i]].press =
             (memory[0] >> i) & 1 && !((pressedButtonsPreviously[0] >> i) & 1)
@@ -178,14 +196,45 @@ function render(dt: number) {
                 : false;
 
     if (ctx && !isFocused()) {
-        ctx.clearRect(0, 0, WIDTH, HEIGHT);
-        currentGame.update?.(dt - previous, ctx);
-        SceneManager.update(dt - previous, ctx);
+        removeDirtyMark();
+        if (isCollectingDebugData) debugData['Update State'] = 'Global';
+        currentGame.update?.(dt - previous);
+        if (isCollectingDebugData) debugData['Update State'] = 'Particles';
+        updateParticles(dt - previous);
+        SceneManager.update(dt - previous);
+        if (isCollectingDebugData) debugData['Update State'] = 'Screen';
+        const buf = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+        if (isDirty) {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+            for (let h = 0; h < HEIGHT; ++h)
+                for (let w = 0; w < WIDTH; ++w) {
+                    if (memory[h * WIDTH + w + 1] !== 0xff) {
+                        const color = getColor(
+                            memory[h * WIDTH + w + 1],
+                            getCurrentPalette()
+                        );
+                        const offset = (h * WIDTH + w) * 4;
+                        buf[offset] = color.r;
+                        buf[offset + 1] = color.g;
+                        buf[offset + 2] = color.b;
+                        buf[offset + 3] = color.a;
+                    }
+                }
+
+            ctx.putImageData(new ImageData(buf, WIDTH, HEIGHT), 0, 0);
+        }
     }
 
     previous = dt;
     pressedButtonsPreviously[0] = memory[0];
+    renderTimes.push(Date.now() - start);
+    if (Date.now() - start > 30)
+        console.warn('[Violation] Screen Update took over 30 milliseconds');
     requestAnimationFrame(render);
+    callEvent('afterRender', [ctx, dt - previous]);
+
+    if (!isCollectingDebugData) return;
+    debugData['Update State'] = 'Idle';
     debugData['Render (ms)'] = Date.now() - start + 'ms';
     debugData['Buttons Down'] = '';
     debugData['Buttons Pressed'] = '';
@@ -197,7 +246,12 @@ function render(dt: number) {
     }
     debugData['Buttons Down'] ||= 'None';
     debugData['Buttons Pressed'] ||= 'None';
-    callEvent('afterRender', [ctx, dt - previous]);
+    debugData['Mean Update Time'] =
+        (renderTimes.reduce((a, b) => a + b, 0) / renderTimes.length).toFixed(
+            2
+        ) + 'ms';
+    debugData['Worst Update Time'] =
+        renderTimes.reduce((a, b) => (a > b ? a : b), 0) + 'ms';
 }
 
 let frame: HTMLElement | null = null;
@@ -250,7 +304,7 @@ export function makeTextBtn(text: string): HTMLDivElement {
 let done = false;
 let onUnload: (() => void)[] = [];
 
-let debugData: Record<string, string> = {
+export let debugData: Record<string, string> = {
     'Game State': 'Uninitialized',
     'Render (ms)': '-1ms',
     'Buttons Down': 'None',
@@ -267,6 +321,7 @@ export function getDebugString(): string {
 }
 
 export async function unload() {
+    unloadMusic();
     await stopGame();
     for (const fn of onUnload) fn();
     onUnload = [];
@@ -277,6 +332,7 @@ export async function unload() {
     if (frame?.isConnected) frame.remove();
     currentGame = null;
     done = false;
+    if (!isCollectingDebugData) return;
     debugData['Game State'] = 'Uninitialized';
 }
 
@@ -308,7 +364,7 @@ export type Rainbow32ConsoleElementGenerator = (
     opts: Rainbow32ConsoleElementGeneratorOptions
 ) => Rainbow32ConsoleElements;
 
-export function onLoad(
+export async function onLoad(
     element?: HTMLElement,
     withControls?: boolean,
     generator?: Rainbow32ConsoleElementGenerator
@@ -323,6 +379,7 @@ export function onLoad(
     if (canvasFullScreen()) withControls = false;
     if (frame) frame.remove();
     frame = element;
+    await loadMusic();
 
     const generated = generator?.({
         canvas: {
@@ -483,6 +540,7 @@ export function onLoad(
         generated?.buttons?.start?.remove();
         generated?.buttons?.stop?.remove();
     }
+    if (!isCollectingDebugData) return;
     debugData['Game State'] = 'Idle';
 }
 
@@ -528,8 +586,10 @@ function callEvent(event: string, args: any[]) {
 }
 
 export function loadGame(game: GameFile) {
-    debugData['Game State'] = 'Running';
-    debugData['Game Name'] = game.name;
+    if (isCollectingDebugData) {
+        debugData['Game State'] = 'Running';
+        debugData['Game Name'] = game.name;
+    }
     if (!frame || !frame.isConnected) return;
     currentGame = game;
     ctx?.canvas.setAttribute(
@@ -552,8 +612,10 @@ export function loadGame(game: GameFile) {
 }
 
 export function stopGame(): Promise<void> {
-    debugData['Game State'] = 'Idle';
-    debugData['Game Name'] = '';
+    if (isCollectingDebugData) {
+        debugData['Game State'] = 'Idle';
+        debugData['Game Name'] = '';
+    }
     stopNextRender = true;
     if (!currentGame) return new Promise((res) => res());
     currentGame.remove?.();

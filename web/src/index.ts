@@ -1,10 +1,12 @@
 import {
     Button,
     getDebugString,
+    isCollectingDebugData,
     onLoad,
     Rainbow32ConsoleElementGeneratorOptions,
     Rainbow32ConsoleElements,
     registerEvent,
+    setDbgDataCollection,
 } from '../../rainbow32/src/index';
 
 let gameTitleH1: HTMLHeadingElement;
@@ -201,6 +203,7 @@ window.addEventListener('load', () => {
         if (ev.key === 'F6') {
             debugDataDiv.style.display =
                 debugDataDiv.style.display === 'none' ? 'block' : 'none';
+            setDbgDataCollection(debugDataDiv.style.display !== 'none');
         }
     });
 });

@@ -76,6 +76,7 @@ const typeImports = [
     'Sound',
     'SoundFunction',
     'AudioUtils',
+    'Particle',
 ];
 const imports = [
     'registerGame',
@@ -99,6 +100,7 @@ const imports = [
     'Scene',
     'SceneManager',
     'TextUtils',
+    'ParticleSystem',
 ];
 
 type Requestify<T extends Record<string, any>> = {

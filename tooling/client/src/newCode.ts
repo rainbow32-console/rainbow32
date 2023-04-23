@@ -5,8 +5,8 @@ export function getCode(color: string, name: string): string {
     beforeInit() {
         return {};
     },
-    afterUpdate(_cfg, _scene, _dt, ctx) {
-        TextUtils.writeText('World', ctx, WIDTH / 2, (HEIGHT / 2) + 6, WIDTH);
+    afterUpdate(_cfg, _scene, _dt) {
+        TextUtils.writeText('World', WIDTH / 2, (HEIGHT / 2) + 6, WIDTH);
     }
 });
 
@@ -24,8 +24,8 @@ registerGame({
     remove() {
         isRunning = false;
     },
-    update(_dt, ctx) {
-        TextUtils.writeText('Hello', ctx, WIDTH / 2, HEIGHT / 2, WIDTH);
+    update(_dt) {
+        TextUtils.writeText('Hello', WIDTH / 2, HEIGHT / 2, WIDTH);
     }
 });`;
 }

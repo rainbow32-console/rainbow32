@@ -1,3 +1,4 @@
+import { HEIGHT, memory, WIDTH } from '.';
 import { distance } from './math';
 
 export type ColorPalette = [
@@ -305,76 +306,31 @@ export function imgToPng(
     return canvas.toDataURL(type || 'image/png');
 }
 
-export function blendImageData(data1: ImageData, data2: ImageData) {
-    if (data1.height !== data2.height || data1.width !== data2.width)
-        throw new Error('Width or height do not match between data1 and data2');
-
-    for (let h = 0; h < data1.height; ++h)
-        for (let w = 0; w < data1.width; ++w) {
-            const offset = (h * data1.width + w) * 4;
-            let r1 = data1.data[offset];
-            let g1 = data1.data[offset + 1];
-            let b1 = data1.data[offset + 2];
-
-            const r2 = data2.data[offset];
-            const g2 = data2.data[offset + 1];
-            const b2 = data2.data[offset + 2];
-            const a2 = data2.data[offset + 3];
-
-            r1 = (r1 * (255 - a2) + r2 * a2) / 255;
-            if (r1 > 255) r1 = 255;
-            g1 = (g1 * (255 - a2) + g2 * a2) / 255;
-            if (g1 > 255) g1 = 255;
-            b1 = (b1 * (255 - a2) + b2 * a2) / 255;
-            if (b1 > 255) b1 = 255;
-
-            data1.data[offset] = r1;
-            data1.data[offset + 1] = g1;
-            data1.data[offset + 2] = b1;
-            data1.data[offset + 3] = Math.max(a2, data1.data[offset + 3]);
+export function putImage(x: number, y: number, image: Image) {
+    isDirty = true;
+    x = Math.floor(x);
+    y = Math.floor(y);
+    for (let h = 0; h < image.height; ++h) {
+        for (let w = 0; w < image.width; ++w) {
+            const off = (h + y) * WIDTH + x + w;
+            if (off >= WIDTH * HEIGHT) continue;
+            if (image.buf[off] === 0xff) continue;
+            memory[off + 1] = image.buf[h * image.width + w];
         }
+    }
 }
 
-export function blendImageDataR(data1: ImageData, data2: ImageData) {
-    if (data1.height !== data2.height || data1.width !== data2.width)
-        throw new Error('Width or height do not match between data1 and data2');
-
-    for (let h = 0; h < data1.height; ++h)
-        for (let w = 0; w < data1.width; ++w) {
-            const offset = (h * data1.width + w) * 4;
-            let r1 = data1.data[offset];
-            let g1 = data1.data[offset + 1];
-            let b1 = data1.data[offset + 2];
-
-            const r2 = data2.data[offset];
-            const g2 = data2.data[offset + 1];
-            const b2 = data2.data[offset + 2];
-            const a2 = data2.data[offset + 3];
-
-            r1 = (r1 * (255 - a2) + r2 * a2) / 255;
-            if (r1 > 255) r1 = 255;
-            g1 = (g1 * (255 - a2) + g2 * a2) / 255;
-            if (g1 > 255) g1 = 255;
-            b1 = (b1 * (255 - a2) + b2 * a2) / 255;
-            if (b1 > 255) b1 = 255;
-
-            data2.data[offset] = r1;
-            data2.data[offset + 1] = g1;
-            data2.data[offset + 2] = b1;
-            data2.data[offset + 3] = Math.max(a2, data1.data[offset + 3]);
+export function putImageRaw(x: number, y: number, image: Image) {
+    isDirty = true;
+    x = Math.floor(x);
+    y = Math.floor(y);
+    for (let h = 0; h < image.height; ++h) {
+        for (let w = 0; w < image.width; ++w) {
+            const off = (h + y) * WIDTH + x + w;
+            if (off >= WIDTH * HEIGHT) continue;
+            memory[off + 1] = image.buf[h * image.width + w];
         }
-}
-
-export function putImageData(
-    ctx: CanvasRenderingContext2D,
-    data: ImageData | null,
-    x: number,
-    y: number
-) {
-    if (!data) return;
-    const bgData = ctx.getImageData(x, y, data.width, data.height);
-    blendImageData(bgData, data);
-    ctx.putImageData(bgData, x, y);
+    }
 }
 
 export function isValidColor(color: number): boolean {
@@ -446,4 +402,12 @@ export function unserializeImage(arr: Uint8Array): Image {
         for (let w = 0; w < img.width; ++w)
             buf[h * img.width + w] = img.buf[h * img.width + w + 8];
     return img;
+}
+
+export let isDirty = false;
+export function removeDirtyMark() {
+    isDirty = false;
+}
+export function markAsDirty() {
+    isDirty = true;
 }
