@@ -1,3 +1,4 @@
+import { canvasFullScreen } from '../../rainbow32/src/electron';
 import {
     Button,
     getDebugString,
@@ -206,6 +207,13 @@ window.addEventListener('load', () => {
             setDbgDataCollection(debugDataDiv.style.display !== 'none');
         }
     });
+    if (canvasFullScreen()) {
+        document.body.style.cursor = 'none';
+        document.body.style.height = '100vh';
+    } else {
+        document.body.style.cursor = '';
+        document.body.style.height = '';
+    }
 });
 
 registerEvent('afterLoad', (game) => (gameTitleH1.textContent = game.name));

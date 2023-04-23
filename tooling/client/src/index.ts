@@ -1,9 +1,9 @@
 import {
     applyImageMask,
     defaultPalette,
+    getCurrentPalette,
     Image,
     ImageMask,
-    imgToImageData,
     parseImage,
     parseMask,
     square,
@@ -30,6 +30,66 @@ import {
 } from '../../../rainbow32/src/index';
 import { getCode } from './newCode';
 import _default from '../../../rainbow32/src/fonts/default';
+
+function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
+    const palette = getCurrentPalette();
+    let col = palette[color];
+    if (!col)
+        throw new Error(
+            'The color has to be in the range of 0-31. Supplied ' + color
+        );
+
+    if (col.startsWith('#')) col = col.substring(1);
+    let r_str = col[0] + col[1];
+    let g_str = col[2] + col[3];
+    let b_str = col[4] + col[5];
+    let a_str = col[6] + col[7];
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let a = 0xff;
+    try {
+        const col = parseInt(r_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) r = col;
+    } catch {}
+    try {
+        const col = parseInt(g_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) g = col;
+    } catch {}
+    try {
+        const col = parseInt(b_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) b = col;
+    } catch {}
+    try {
+        const col = parseInt(a_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) a ||= col;
+    } catch {}
+    return { r, g, b, a };
+}
+function imgToImageData(img: Image): ImageData | null {
+    if (img.width < 1 || img.height < 1) return null;
+    const buf = new Uint8ClampedArray(img.width * img.height * 4);
+
+    for (let h = 0; h < img.height; ++h)
+        for (let w = 0; w < img.width; ++w) {
+            if (img.buf[h * img.width + w] === 0xff) {
+                const offset = (h * img.width + w) * 4;
+                buf[offset] = 0;
+                buf[offset + 1] = 0;
+                buf[offset + 2] = 0;
+                buf[offset + 3] = 0;
+            } else {
+                const color = getColor(img.buf[h * img.width + w]);
+                const offset = (h * img.width + w) * 4;
+                buf[offset] = color.r;
+                buf[offset + 1] = color.g;
+                buf[offset + 2] = color.b;
+                buf[offset + 3] = color.a;
+            }
+        }
+
+    return new ImageData(buf, img.width, img.height);
+}
 
 function text(text: string): Text {
     return document.createTextNode(text);

@@ -4,16 +4,13 @@ import { writeText, currentTextMasks } from 'library/textUtils';
 export const CharacterScene = new Scene({
     name: 'CharacterScene',
     gameObjects: [],
-    afterUpdate(config, scene, dt, ctx) {
+    afterUpdate(cfg) {
         writeText(
             Object.keys(currentTextMasks).join(''),
-            ctx,
             10,
             10,
-            WIDTH - 20
+            WIDTH - 10
         );
     },
-    beforeInit() {
-        return {};
-    },
+    beforeInit: () => ({}),
 });

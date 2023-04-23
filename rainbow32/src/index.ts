@@ -10,7 +10,7 @@ import {
     removeDirtyMark,
     setCurrentPalette,
 } from './imageUtils';
-import { updateParticles } from './particleSystem';
+import { removeParticles, updateParticles } from './particleSystem';
 import { Scene, SceneManager } from './SceneManager';
 import { download } from './utils';
 
@@ -209,10 +209,7 @@ function render(dt: number) {
             for (let h = 0; h < HEIGHT; ++h)
                 for (let w = 0; w < WIDTH; ++w) {
                     if (memory[h * WIDTH + w + 1] !== 0xff) {
-                        const color = getColor(
-                            memory[h * WIDTH + w + 1],
-                            getCurrentPalette()
-                        );
+                        const color = getColor(memory[h * WIDTH + w + 1]);
                         const offset = (h * WIDTH + w) * 4;
                         buf[offset] = color.r;
                         buf[offset + 1] = color.g;
@@ -379,7 +376,6 @@ export async function onLoad(
     if (canvasFullScreen()) withControls = false;
     if (frame) frame.remove();
     frame = element;
-    await loadMusic();
 
     const generated = generator?.({
         canvas: {
@@ -542,6 +538,8 @@ export async function onLoad(
     }
     if (!isCollectingDebugData) return;
     debugData['Game State'] = 'Idle';
+
+    loadMusic();
 }
 
 let currentGame: GameFile | null = null;
@@ -585,7 +583,8 @@ function callEvent(event: string, args: any[]) {
     }
 }
 
-export function loadGame(game: GameFile) {
+export async function loadGame(game: GameFile) {
+    await loadMusic();
     if (isCollectingDebugData) {
         debugData['Game State'] = 'Running';
         debugData['Game Name'] = game.name;
@@ -612,6 +611,7 @@ export function loadGame(game: GameFile) {
 }
 
 export function stopGame(): Promise<void> {
+    removeParticles();
     if (isCollectingDebugData) {
         debugData['Game State'] = 'Idle';
         debugData['Game Name'] = '';
@@ -654,6 +654,9 @@ export async function loadFromEvent(ev: InputEvent) {
         for (let i = offset; i < buf.length - 4; ++i) {
             text += String.fromCharCode(buf[i]);
         }
+    } else {
+        for (let i = 0; i < buf.length; ++i)
+            text += String.fromCharCode(buf[i]);
     }
     if (!text) return;
     try {

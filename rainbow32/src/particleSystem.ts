@@ -1,4 +1,4 @@
-import { HEIGHT, WIDTH } from '.';
+import { debugData, HEIGHT, isCollectingDebugData, WIDTH } from '.';
 import { Vec2 } from './gameObject';
 import { Image, markAsDirty, putImage, square } from './imageUtils';
 
@@ -35,6 +35,8 @@ export function addParticle(
 }
 
 function particleCanBeRemoved(p: Particle) {
+    if (p.pos.x < 0 || p.pos.x > WIDTH || p.pos.y < 0 || p.pos.y > HEIGHT)
+        return true;
     if (p.end >= 0) return Date.now() > p.end;
     return Math.abs(p.force.y) < 0.1 && p.pos.y === HEIGHT - p.image.height;
 }
@@ -44,6 +46,7 @@ let oldAmountParticles = 0;
 export function updateParticles(dt: number) {
     if (oldAmountParticles !== particles.length) markAsDirty();
     oldAmountParticles = particles.length;
+    let p = 0;
 
     for (let i = 0; i < particles.length; ++i) {
         if (particleCanBeRemoved(particles[i])) {
@@ -87,10 +90,17 @@ export function updateParticles(dt: number) {
             particles[i].force.x *= -1;
             particles[i].pos.x = 0;
         }
-
+        p++;
         putImage(particles[i].pos.x, particles[i].pos.y, particles[i].image);
     }
+    if (!isCollectingDebugData) return;
+    debugData['Particles'] = particles.length.toString();
+    debugData['Particles (visisble)'] = p.toString();
 }
 export function removeParticle(p: Particle) {
     p.end = 0;
+}
+
+export function removeParticles() {
+    while (particles.length > 0) particles.pop();
 }

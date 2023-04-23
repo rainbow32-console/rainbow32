@@ -78,6 +78,10 @@ export interface Image {
 }
 
 let currentPalette = defaultPalette;
+let parsedPalette: Record<'r' | 'g' | 'b' | 'a', number>[] = [];
+
+for (let i = 0; i < currentPalette.length; ++i)
+    parsedPalette[i] = getColor$(i, currentPalette);
 
 export function getCurrentPalette(): ColorPalette {
     return currentPalette;
@@ -85,6 +89,13 @@ export function getCurrentPalette(): ColorPalette {
 
 export function setCurrentPalette(palette: ColorPalette) {
     currentPalette = palette;
+    parsedPalette = [];
+    for (let i = 0; i < currentPalette.length; ++i)
+        parsedPalette[i] = getColor$(i, currentPalette);
+}
+
+export function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
+    return parsedPalette[color];
 }
 
 export function parseImage(image: string): Image {
@@ -125,7 +136,7 @@ export function parseImage(image: string): Image {
     };
 }
 
-export function getColor(
+function getColor$(
     color: number,
     palette?: ColorPalette
 ): Record<'r' | 'g' | 'b' | 'a', number> {
@@ -164,10 +175,7 @@ export function getColor(
     return { r, g, b, a };
 }
 
-export function imgToImageData(
-    img: Image,
-    palette?: ColorPalette
-): ImageData | null {
+function imgToImageData(img: Image, palette?: ColorPalette): ImageData | null {
     if (img.width < 1 || img.height < 1) return null;
     const buf = new Uint8ClampedArray(img.width * img.height * 4);
 
@@ -180,7 +188,7 @@ export function imgToImageData(
                 buf[offset + 2] = 0;
                 buf[offset + 3] = 0;
             } else {
-                const color = getColor(img.buf[h * img.width + w], palette);
+                const color = getColor$(img.buf[h * img.width + w], palette);
                 const offset = (h * img.width + w) * 4;
                 buf[offset] = color.r;
                 buf[offset + 1] = color.g;
@@ -314,7 +322,7 @@ export function putImage(x: number, y: number, image: Image) {
         for (let w = 0; w < image.width; ++w) {
             const off = (h + y) * WIDTH + x + w;
             if (off >= WIDTH * HEIGHT) continue;
-            if (image.buf[off] === 0xff) continue;
+            if (image.buf[h * image.width + w] === 0xff) continue;
             memory[off + 1] = image.buf[h * image.width + w];
         }
     }

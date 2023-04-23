@@ -1,5 +1,5 @@
 import { Component, GameObject } from '../gameObject';
-import { applyImageMask, imgToImageData, putImage } from '../imageUtils';
+import { applyImageMask, putImage } from '../imageUtils';
 
 class imageRenderer implements Component {
     readonly name = 'ImageRenderer';

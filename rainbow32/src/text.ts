@@ -127,13 +127,13 @@ export function writeText(
     const maxLength = Math.min(maxWidth - x, calculateWidth(text, spaceWidth));
     const linePadLeft = centered
         ? text.split('\n').map((el) => {
-              console.log(calculateWidth(el, spaceWidth!), maxLength);
-              return Math.floor(
-                  (maxLength - calculateWidth(el, spaceWidth!)) / 2
+              return Math.max(
+                  Math.floor((maxLength - calculateWidth(el, spaceWidth!)) / 2),
+                  0
               );
           })
         : [];
-    x -= Math.floor(maxLength / 2);
+    if (centered) x = Math.max(0, x - Math.floor(maxLength / 2));
     spaceWidth++;
 
     let line = 0;
@@ -166,7 +166,7 @@ export function writeText(
         if (x > maxWidth || text[i] === '\n') {
             lines.push({ y, start: origX, end: origX + lineLength - 1 });
             x = origX;
-            if (linePadLeft[++line]) x += linePadLeft[line];
+            if (text[i] === '\n' && linePadLeft[++line]) x += linePadLeft[line];
             y += 6;
             if (background && lineLength > 0)
                 putImageRaw(x, y - 1, square(lineLength, 1, background));

@@ -5,7 +5,7 @@ export const PressWalker = {
     init({ steps = 5, speed = 1 } = {}) {
         return { x: 0, y: 0, steps, speed };
     },
-    update(config, dt, ctx, gameObject) {
+    update(config, dt, gameObject) {
         const step = config.steps;
         if (buttons.up.down) config.y -= 0.05 * dt * config.speed;
         if (buttons.left.down) config.x -= 0.05 * dt * config.speed;

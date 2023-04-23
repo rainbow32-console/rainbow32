@@ -35,7 +35,7 @@ registerGame({
     name: 'Test game',
     bg: '#ffffff',
     scenes: [MainScene, CharacterScene, ColorPaletteScene, OpacityScene],
-    defaultScene: 2,
+    defaultScene: 0,
     init() {
         const $audio = audio(25, [
             {

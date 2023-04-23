@@ -5,8 +5,9 @@ import {
     HEIGHT,
     WIDTH,
     Scene,
+    Image,
 } from 'library';
-import { imgToImageData, parseImage, putImageData } from 'library/imageUtils';
+import { parseImage, putImageRaw } from 'library/imageUtils';
 import { readFromFile, storeToFile } from 'library/saveFile';
 import { writeText } from 'library/textUtils';
 import { Blinker } from '../components/blinker';
@@ -59,7 +60,7 @@ function generateImg(canvas: number[]) {
 export const MainScene = new Scene<{
     cursor: GameObject;
     canvas: number[];
-    data: ImageData;
+    data: Image;
     selected: number;
 }>({
     gameObjects: [],
@@ -74,17 +75,15 @@ export const MainScene = new Scene<{
             canvas:
                 readFromFile<number[]>('drawing') ||
                 new Array<number>(40 * 35).fill(0xff),
-            data: undefined as any as ImageData,
+            data: undefined as any as Image,
             selected: 0,
         };
-        config.data = imgToImageData(
-            parseImage(generateImg(config.canvas))
-        ) as ImageData;
+        config.data = parseImage(generateImg(config.canvas));
         scene.addObject(config.cursor);
 
         return config;
     },
-    beforeUpdate(config, scene, dt, ctx) {
+    beforeUpdate(config, scene, dt) {
         const { canvas, cursor } = config;
 
         if (buttons.o.press) config.selected--;
@@ -97,29 +96,22 @@ export const MainScene = new Scene<{
                 Math.floor(cursor.transform.position.y / 5) * 40 +
                     Math.floor(cursor.transform.position.x / 5)
             ] = config.selected;
-            config.data = imgToImageData(
-                parseImage(generateImg(canvas))
-            ) as ImageData;
+            config.data = parseImage(generateImg(canvas));
         }
         if (buttons.i.down) {
             canvas[
                 Math.floor(cursor.transform.position.y / 5) * 40 +
                     Math.floor(cursor.transform.position.x / 5)
             ] = 0xff;
-            config.data = imgToImageData(
-                parseImage(generateImg(canvas))
-            ) as ImageData;
+            config.data = parseImage(generateImg(canvas));
             // download(imgToPng(parseImage(generateImg()), 'image/png'), 'image.png');
         }
 
-        putImageData(ctx, config.data, 0, 0);
-        putImageData(
-            ctx,
-            imgToImageData(
-                parseImage('5:5:' + config.selected.toString(32).repeat(25))
-            ),
+        putImageRaw(0, 0, config.data);
+        putImageRaw(
             0,
-            HEIGHT - 5
+            HEIGHT - 5,
+            parseImage('5:5:' + config.selected.toString(32).repeat(25))
         );
         writeText(
             'Selected: ' +
@@ -127,7 +119,6 @@ export const MainScene = new Scene<{
                 '(' +
                 config.selected.toString(32) +
                 ')',
-            ctx,
             10,
             HEIGHT - 5,
             WIDTH - 5,

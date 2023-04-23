@@ -426,6 +426,9 @@ export function unloadMusic() {
     ctx.suspend();
 }
 
-export function loadMusic(): Promise<void> {
-    return ctx.resume();
+export async function loadMusic(): Promise<void> {
+    if (ctx.state !== 'suspended') return;
+    try {
+        return await ctx.resume();
+    } catch {}
 }
