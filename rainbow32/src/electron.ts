@@ -9,6 +9,7 @@ interface ElectronAPI {
         path: string
     ): Promise<undefined | { name: string; file: boolean }[]>;
     getFileContents(device: string, path: string): Promise<string | undefined>;
+    getCartridges(): Promise<string[]>;
 }
 const electronAPI: ElectronAPI | undefined = (window as any).electron
     ?.ipcRenderer;
@@ -84,6 +85,11 @@ let selected = 0;
 let currentDevice: string | null = null;
 let currentPath: string[] = [];
 let files: { file: boolean; name: string }[] = [];
+let cartridges: string[] | undefined = undefined;
+electronAPI?.getCartridges().then((c) => {
+    cartridges = c;
+    if (currentDevice === 'cartridges') rerender();
+});
 
 function render() {
     const div = document.createElement('div');
@@ -97,21 +103,46 @@ function render() {
             ? 'home'
             : currentDevice === '/'
             ? ''
+            : currentDevice === 'cartridges'
+            ? 'cartridges'
             : '/mnt/' + currentDevice) +
         '/' +
         currentPath.join('/');
     div.append(pathOverview);
 
     if (currentDevice) {
-        for (let i = 0; i < files.length; ++i)
-            div.append(makeEntry(files[i].name, selected === i, files[i].file));
+        if (currentDevice === 'cartridges') {
+            div.append(makeEntry('.. (Go Up)', selected === 0, undefined));
+            if (!cartridges) {
+                const loading = makeEntry('Loading...', false, undefined);
+                div.append(loading);
+            } else {
+                for (let i = 0; i < cartridges.length; ++i) {
+                    const cartridge = document.createElement('div');
+                    cartridge.classList.add('cartridge');
+                    div.append(cartridge);
+                    cartridge.setAttribute(
+                        'style',
+                        '--img: url("' + cartridges[i] + '");'
+                    );
+                    cartridge.setAttribute('b64', cartridges[i].substring(22));
+                    div.append(cartridge);
+                }
+            }
+        } else {
+            for (let i = 0; i < files.length; ++i)
+                div.append(
+                    makeEntry(files[i].name, selected === i, files[i].file)
+                );
+        }
     } else {
         div.append(
             makeEntry('/ (Root)', selected === 0, undefined),
-            makeEntry('home', selected === 1, undefined)
+            makeEntry('home', selected === 1, undefined),
+            makeEntry('cartridges', selected === 2, undefined)
         );
         for (let i = 0; i < devices.length; ++i)
-            div.append(makeEntry(devices[i], selected === i + 2, undefined));
+            div.append(makeEntry(devices[i], selected === i + 3, undefined));
     }
 
     return div;
@@ -161,8 +192,12 @@ export function hide() {
 function $goUp() {
     if (!electronAPI) return;
     if (!currentDevice) return hide();
-    else if (currentPath.length < 1) {
-        if (currentDevice !== '/' && currentDevice !== 'home')
+    else if (currentPath.length < 1 || currentDevice === 'cartridges') {
+        if (
+            currentDevice !== '/' &&
+            currentDevice !== 'home' &&
+            currentDevice !== 'cartridges'
+        )
             electronAPI.unmountDevice(currentDevice);
         currentDevice = null;
         selected = 0;
@@ -182,8 +217,10 @@ function $goUp() {
 
 function $move(up: boolean) {
     let max = 0;
-    if (currentDevice) max += files.length;
-    else max += devices.length + 2;
+    if (currentDevice === 'cartridges')
+        max = cartridges ? cartridges?.length + 1 : 1;
+    else if (currentDevice) max = files.length;
+    else max = devices.length + 2;
 
     let newSelected = 0;
 
@@ -193,8 +230,10 @@ function $move(up: boolean) {
     const oldNode = currentDiv.children[selected + 1];
     if (oldNode) {
         oldNode.classList.remove('active');
-        (oldNode.childNodes[0] as Text).data = '\xa0\xa0';
+        if (oldNode.classList.contains('fileselect'))
+            (oldNode.childNodes[0] as Text).data = '\xa0\xa0';
     }
+    if (max === 0) return;
     if (newSelected < 0) selected = 0;
     else if (newSelected >= max) selected = max - 1;
     else selected = newSelected;
@@ -205,13 +244,37 @@ function $move(up: boolean) {
             behavior: 'auto',
             block: 'center',
         });
-        (node.childNodes[0] as Text).data = '▶ ';
+        if (node.classList.contains('fileselect'))
+            (node.childNodes[0] as Text).data = '▶ ';
     }
     // rerender();
 }
 
 function $open() {
     if (!electronAPI) return;
+    if (currentDevice === 'cartridges') {
+        if (selected === 0) return $goUp();
+        const node = currentDiv.children[selected + 1];
+        if (!node) return;
+        const b64 = node.getAttribute('b64');
+        if (!b64) return;
+        fetch('data:application/octet-stream;base64,' + b64)
+            .then((r) => r.arrayBuffer())
+            .then((buf) => new Uint8Array(buf))
+            .then((buf) => {
+                const offset =
+                    buf[buf.length - 1] |
+                    (buf[buf.length - 2] << 8) |
+                    (buf[buf.length - 3] << 16) |
+                    (buf[buf.length - 4] << 24);
+                let text = '';
+                for (let i = offset; i < buf.length - 4; ++i)
+                    text += String.fromCharCode(buf[i]);
+                console.log(text);
+                hide();
+                return loadGameByContents(text).catch(() => {});
+            });
+    }
     if (currentDevice) {
         const f = files[selected];
         if (!f) return;
@@ -262,7 +325,14 @@ function $open() {
         });
         return;
     }
-    const d = devices[selected - 2];
+    if (selected === 2) {
+        currentDevice = 'cartridges';
+        files = [];
+        currentPath = [];
+        selected = 0;
+        return rerender();
+    }
+    const d = devices[selected - 3];
     if (!d) return;
     electronAPI
         .mountDevice(d)

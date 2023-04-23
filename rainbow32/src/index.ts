@@ -191,9 +191,9 @@ function render(dt: number) {
     debugData['Buttons Pressed'] = '';
     for (let i = 0; i < buttonIds.length; ++i) {
         if (buttons[buttonIds[i]].press)
-        debugData['Buttons Pressed'] += buttonIds[i] + ' ';
+            debugData['Buttons Pressed'] += buttonIds[i] + ' ';
         if (buttons[buttonIds[i]].down)
-        debugData['Buttons Down'] += buttonIds[i] + ' ';
+            debugData['Buttons Down'] += buttonIds[i] + ' ';
     }
     debugData['Buttons Down'] ||= 'None';
     debugData['Buttons Pressed'] ||= 'None';
@@ -253,8 +253,8 @@ let onUnload: (() => void)[] = [];
 let debugData: Record<string, string> = {
     'Game State': 'Uninitialized',
     'Render (ms)': '-1ms',
-    'Buttons Down': '',
-    'Buttons Pressed': '',
+    'Buttons Down': 'None',
+    'Buttons Pressed': 'None',
     'Game Name': '',
 };
 export function getDebugString(): string {
@@ -495,8 +495,14 @@ export function registerEvent(
     handler: (game: GameFile) => void
 ): () => void;
 export function registerEvent(ev: 'afterStop', handler: () => void): () => void;
-export function registerEvent(ev: 'beforeRender', handler: (ctx: CanvasRenderingContext2D, dt: number) => void): () => void;
-export function registerEvent(ev: 'afterRender', handler: (ctx: CanvasRenderingContext2D, dt: number) => void): () => void;
+export function registerEvent(
+    ev: 'beforeRender',
+    handler: (ctx: CanvasRenderingContext2D, dt: number) => void
+): () => void;
+export function registerEvent(
+    ev: 'afterRender',
+    handler: (ctx: CanvasRenderingContext2D, dt: number) => void
+): () => void;
 
 export function registerEvent(
     ev: string,
@@ -526,15 +532,18 @@ export function loadGame(game: GameFile) {
     debugData['Game Name'] = game.name;
     if (!frame || !frame.isConnected) return;
     currentGame = game;
-    for (let i = 0; i < frame.children.length; ++i)
-        if (frame.children[i].tagName === 'CANVAS')
-            frame.children[i].setAttribute(
-                'style',
-                '--bg-col: ' +
-                    game.bg +
-                    '; ' +
-                    (frame.children[i].getAttribute('style') || '')
-            );
+    ctx?.canvas.setAttribute(
+        'style',
+        '--bg-col: ' +
+            game.bg +
+            '; ' +
+            (ctx.canvas
+                .getAttribute('style')
+                ?.replace(
+                    /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\))/,
+                    ''
+                ) || '')
+    );
     if (game.palette) setCurrentPalette(game.palette);
     game?.init?.();
     if (game.scenes) SceneManager.setScenes(game.scenes, game.defaultScene);
@@ -551,6 +560,16 @@ export function stopGame(): Promise<void> {
     SceneManager.setScenes([]);
     currentGame = null;
     if (ctx) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx?.canvas.setAttribute(
+        'style',
+        '--bg-col: #fff; ' +
+            (ctx.canvas
+                .getAttribute('style')
+                ?.replace(
+                    /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\))/,
+                    ''
+                ) || '')
+    );
     callEvent('afterStop', []);
     return new Promise((res) => requestAnimationFrame(res as any));
 }
@@ -561,7 +580,19 @@ export async function loadFromEvent(ev: InputEvent) {
 
     const el = ev.target as HTMLInputElement;
     if (!el.files || !el.files.item(0)) return;
-    const text = await el.files.item(0)?.text();
+    let text = '';
+    const buf = new Uint8Array(await el.files.item(0)!.arrayBuffer());
+    if (el.files.item(0)!.name.endsWith('.png')) {
+        let offset =
+            buf[buf.length - 1] |
+            (buf[buf.length - 2] << 8) |
+            (buf[buf.length - 3] << 16) |
+            (buf[buf.length - 4] << 24);
+
+        for (let i = offset; i < buf.length - 4; ++i) {
+            text += String.fromCharCode(buf[i]);
+        }
+    }
     if (!text) return;
     try {
         await (async function () {

@@ -35,6 +35,9 @@ const electronHandler = {
     },
     sendKey(key: string) {
       return ipcRenderer.send('press-key', key);
+    },
+    getCartridges(): Promise<string[]> {
+      return ipcRenderer.invoke('get-cartridges');
     }
   },
 };

@@ -81,6 +81,19 @@ body {
     text-decoration: underline;
 }
 
+.cartridge {
+    width: 50%;
+    aspect-ratio: 128/150;
+    background-image: var(--img);
+    background-size: contain;
+    box-sizing: border-box;
+    image-rendering: pixelated;
+}
+
+.cartridge.active {
+    background-color: #15803d;
+}
+
 .fileSelector {
     padding-top: 0px;
     overflow: hidden;

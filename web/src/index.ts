@@ -182,6 +182,7 @@ window.addEventListener('load', () => {
     onLoad(document.body, true, genEls);
     const debugDataDiv = document.createElement('div');
     debugDataDiv.classList.add('debug-data');
+    debugDataDiv.style.display = 'none';
     const title = document.createElement('h3');
     title.textContent = 'Debug Data';
     const pre = document.createElement('pre');
@@ -196,6 +197,12 @@ window.addEventListener('load', () => {
     }
     requestAnimationFrame(render);
     document.body.append(debugDataDiv);
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'F6') {
+            debugDataDiv.style.display =
+                debugDataDiv.style.display === 'none' ? 'block' : 'none';
+        }
+    });
 });
 
 registerEvent('afterLoad', (game) => (gameTitleH1.textContent = game.name));

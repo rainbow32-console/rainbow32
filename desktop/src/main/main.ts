@@ -37,6 +37,7 @@ function resolvePath(device: string, path: string) {
 }
 
 ipcMain.handle('list-dir', async (ev, device: string, path: string) => {
+  if (device === 'cartridges') return [];
   try {
     const res = await readdir(resolvePath(device, path), {
       withFileTypes: true,
@@ -71,7 +72,23 @@ ipcMain.handle('unmount', (ev, device: string) => {
   if (id) unmount(id);
   if (mounted === id) mounted === null;
 });
-
+ipcMain.handle('get-cartridges', async () => {
+  if (!existsSync(join(homedir(), '.cartridges'))) return [];
+  const entries = await readdir(join(homedir(), '.cartridges'), {
+    withFileTypes: true,
+  });
+  const uris: string[] = [];
+  for (let i = 0; i < entries.length; ++i) {
+    if (entries[i].isFile() && entries[i].name.endsWith('.png'))
+      uris.push(
+        'data:image/png;base64,' +
+          (
+            await readFile(join(homedir(), '.cartridges', entries[i].name))
+          ).toString('base64')
+      );
+  }
+  return uris;
+});
 ipcMain.handle('get-devices', () => devices.map((el) => el.name));
 
 ipcMain.handle('get-file-contents', (ev, device: string, path: string) =>
@@ -79,7 +96,7 @@ ipcMain.handle('get-file-contents', (ev, device: string, path: string) =>
     .then((p) => p.toString())
     .catch(() => {})
 );
-
+ipcMain.on('press-key', (ev, key: string) => pressKey(key));
 function pressKey(key: string) {
   if (!mainWindow) return;
   mainWindow.webContents.sendInputEvent({
@@ -167,7 +184,7 @@ app
       if (mainWindow === null) createWindow();
     });
 
-    globalShortcut.register('F12', () => spawnSync('shutdown', ['0']));
+    // globalShortcut.register('F12', () => spawnSync('shutdown', ['0']));
   })
   .catch(console.log);
 
