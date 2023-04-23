@@ -1,7 +1,16 @@
+@font-face {
+    font-family: pixeloid;
+    src: url(./pixeloid.ttf);
+}
+
+:root {
+    --font: pixeloid, monospace;
+}
+
 * {
     margin: 0;
     padding: 0;
-    font-family: sans-serif;
+    font-family: var(--font);
     user-select: none;
 }
 body {
@@ -39,7 +48,7 @@ body {
     justify-content: center;
     user-select: none;
     cursor: pointer;
-    font-family: sans-serif;
+    font-family: var(--font);
     font-weight: bold;
     padding: 0px 0.5rem;
     min-width: 3rem;
@@ -92,4 +101,11 @@ body {
     border-bottom: 1px solid gray;
     padding: 0.25rem;
     user-select: none;
+}
+
+.debug-data {
+    color: white;
+    position: absolute;
+    top: 0px;
+    left: 0px;
 }

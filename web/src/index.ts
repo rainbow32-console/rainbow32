@@ -1,5 +1,6 @@
 import {
     Button,
+    getDebugString,
     onLoad,
     Rainbow32ConsoleElementGeneratorOptions,
     Rainbow32ConsoleElements,
@@ -19,7 +20,6 @@ function makeBtn(classes: string[], type: Button) {
     div.style.justifyContent = 'center';
     div.style.userSelect = 'none';
     div.style.cursor = 'pointer';
-    div.style.fontFamily = 'sans-serif';
     div.style.fontWeight = 'bold';
     div.classList.add(...classes);
     div.textContent =
@@ -45,7 +45,6 @@ export function makeTextBtn(text: string): HTMLDivElement {
     div.style.justifyContent = 'center';
     div.style.userSelect = 'none';
     div.style.cursor = 'pointer';
-    div.style.fontFamily = 'sans-serif';
     div.style.fontWeight = 'bold';
     div.classList.add('__rainbow32_textbutton');
 
@@ -181,6 +180,22 @@ function genEls(
 
 window.addEventListener('load', () => {
     onLoad(document.body, true, genEls);
+    const debugDataDiv = document.createElement('div');
+    debugDataDiv.classList.add('debug-data');
+    const title = document.createElement('h3');
+    title.textContent = 'Debug Data';
+    const pre = document.createElement('pre');
+    pre.textContent = getDebugString();
+    debugDataDiv.append(title, pre);
+    let previous = Date.now();
+    function render(dt: number) {
+        pre.textContent = getDebugString();
+        pre.textContent += 'FPS: ' + (1000 / (dt - previous)).toFixed(0);
+        requestAnimationFrame(render);
+        previous = dt;
+    }
+    requestAnimationFrame(render);
+    document.body.append(debugDataDiv);
 });
 
 registerEvent('afterLoad', (game) => (gameTitleH1.textContent = game.name));

@@ -270,7 +270,6 @@ export function unserializeAudio(arr: Uint8Array): Audio {
 }
 
 type SoundFunction = (vol: number, freq: number, time: number) => Promise<void>;
-
 function playSquareTune(
     vol: number,
     freq: number,
@@ -295,13 +294,13 @@ function playTriangleTune(
 ): Promise<void> {
     return playTune(vol, freq, time, 'triangle');
 }
+const ctx = new AudioContext();
 function playTune(
     vol: number,
     freq: number,
     time: number,
     type: OscillatorType
 ): Promise<void> {
-    const ctx = new AudioContext();
     const node = new OscillatorNode(ctx, {
         type,
         frequency: freq,
@@ -311,12 +310,14 @@ function playTune(
     gainNode.connect(ctx.destination);
     node.connect(gainNode);
     node.start(0);
-    node.stop(time);
-    setTimeout(() => ctx.close(), time * 1000 + 500);
+    setTimeout(() => {
+        node.stop();
+        node.disconnect();
+        gainNode.disconnect();
+    }, time * 1000);
     return sleep(time * 1000);
 }
 function playNoise(vol: number, freq: number, time: number): Promise<void> {
-    const ctx = new AudioContext();
     const bufferSize = ctx.sampleRate * time; // set the time of the note
 
     // Create an empty buffer
@@ -348,7 +349,11 @@ function playNoise(vol: number, freq: number, time: number): Promise<void> {
     // Connect our graph
     noise.connect(bandpass).connect(gainNode);
     noise.start(0);
-    setTimeout(() => ctx.close(), time * 1000 + 500);
+    setTimeout(() => {
+        noise.stop();
+        noise.disconnect();
+        gainNode.disconnect();
+    }, time * 1000);
     return sleep(time * 1000);
 }
 

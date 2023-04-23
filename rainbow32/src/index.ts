@@ -34,7 +34,9 @@ export function changeButtonState(value: boolean, button: Button) {
     memory[0] |= (value ? 1 : 0) << buttonId;
 
     if (buttonElements[button])
-        buttonElements[button].style.backgroundColor = value ? '#15803d' : '#171717';
+        buttonElements[button].style.backgroundColor = value
+            ? '#15803d'
+            : '#171717';
 }
 
 export const buttons: Record<Button, { down: boolean; press: boolean }> = {
@@ -167,6 +169,7 @@ function render(dt: number) {
     if (stopNextRender || !frame || !frame.isConnected || !done)
         return (stopNextRender = false);
     if (!currentGame) return;
+    callEvent('beforeRender', [ctx, dt - previous]);
 
     for (let i = 0; i < buttonIds.length; i++)
         buttons[buttonIds[i]].press =
@@ -183,7 +186,18 @@ function render(dt: number) {
     previous = dt;
     pressedButtonsPreviously[0] = memory[0];
     requestAnimationFrame(render);
-    console.log('Render took %dms', Date.now() - start);
+    debugData['Render (ms)'] = Date.now() - start + 'ms';
+    debugData['Buttons Down'] = '';
+    debugData['Buttons Pressed'] = '';
+    for (let i = 0; i < buttonIds.length; ++i) {
+        if (buttons[buttonIds[i]].press)
+        debugData['Buttons Pressed'] += buttonIds[i] + ' ';
+        if (buttons[buttonIds[i]].down)
+        debugData['Buttons Down'] += buttonIds[i] + ' ';
+    }
+    debugData['Buttons Down'] ||= 'None';
+    debugData['Buttons Pressed'] ||= 'None';
+    callEvent('afterRender', [ctx, dt - previous]);
 }
 
 let frame: HTMLElement | null = null;
@@ -236,6 +250,22 @@ export function makeTextBtn(text: string): HTMLDivElement {
 let done = false;
 let onUnload: (() => void)[] = [];
 
+let debugData: Record<string, string> = {
+    'Game State': 'Uninitialized',
+    'Render (ms)': '-1ms',
+    'Buttons Down': '',
+    'Buttons Pressed': '',
+    'Game Name': '',
+};
+export function getDebugString(): string {
+    let str = '';
+    const keys = Object.keys(debugData);
+    for (let i = 0; i < keys.length; ++i)
+        if (debugData[keys[i]].length > 0)
+            str += `${keys[i]}: ${debugData[keys[i]]}\n`;
+    return str;
+}
+
 export async function unload() {
     await stopGame();
     for (const fn of onUnload) fn();
@@ -247,6 +277,7 @@ export async function unload() {
     if (frame?.isConnected) frame.remove();
     currentGame = null;
     done = false;
+    debugData['Game State'] = 'Uninitialized';
 }
 
 export interface Rainbow32ConsoleElementGeneratorOptions {
@@ -452,6 +483,7 @@ export function onLoad(
         generated?.buttons?.start?.remove();
         generated?.buttons?.stop?.remove();
     }
+    debugData['Game State'] = 'Idle';
 }
 
 let currentGame: GameFile | null = null;
@@ -463,6 +495,8 @@ export function registerEvent(
     handler: (game: GameFile) => void
 ): () => void;
 export function registerEvent(ev: 'afterStop', handler: () => void): () => void;
+export function registerEvent(ev: 'beforeRender', handler: (ctx: CanvasRenderingContext2D, dt: number) => void): () => void;
+export function registerEvent(ev: 'afterRender', handler: (ctx: CanvasRenderingContext2D, dt: number) => void): () => void;
 
 export function registerEvent(
     ev: string,
@@ -488,6 +522,8 @@ function callEvent(event: string, args: any[]) {
 }
 
 export function loadGame(game: GameFile) {
+    debugData['Game State'] = 'Running';
+    debugData['Game Name'] = game.name;
     if (!frame || !frame.isConnected) return;
     currentGame = game;
     for (let i = 0; i < frame.children.length; ++i)
@@ -507,6 +543,8 @@ export function loadGame(game: GameFile) {
 }
 
 export function stopGame(): Promise<void> {
+    debugData['Game State'] = 'Idle';
+    debugData['Game Name'] = '';
     stopNextRender = true;
     if (!currentGame) return new Promise((res) => res());
     currentGame.remove?.();

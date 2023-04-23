@@ -23,6 +23,7 @@ import {
 import { download, sleep } from '../../../rainbow32/src/utils';
 import globals from './globals';
 import {
+    getDebugString,
     loadGameByContents,
     onLoad,
     unload,
@@ -125,14 +126,11 @@ function textButton(
     );
 }
 
-let lastSelected:
-    | 'compiled'
-    | 'draw'
-    | 'mask'
-    | 'music'
-    | 'keybinds'
-    | 'editor'
-    | 'data' = 'draw';
+type tab = 'draw' | 'mask' | 'music' | 'keybinds' | 'editor' | 'data';
+
+let lastSelected: 'compiled' | tab = 'draw';
+
+const tabs: tab[] = ['draw', 'mask', 'keybinds', 'music', 'editor', 'data'];
 
 declare var require: any;
 declare var monaco: any;
@@ -454,6 +452,7 @@ function openPopup(code: string) {
     svg.style.top = '0px';
     svg.style.cursor = 'pointer';
 
+    const debugDataPre = h('pre', {}, []);
     const keybindsDiv = h('div', { class: 'popup-keybinds' }, [
         h('p', {}, [kbd('w'), text('/'), kbd('↑'), text(': Trigger up key')]),
         h('p', {}, [kbd('a'), text('/'), kbd('←'), text(': Trigger left key')]),
@@ -468,6 +467,9 @@ function openPopup(code: string) {
         h('p', {}, [kbd('i'), text(': Trigger action 2 key')]),
         h('p', {}, [kbd('o'), text(': Trigger action 3 key')]),
         h('p', {}, [kbd('p'), text(': Trigger action 4 key')]),
+        h('br', {}, []),
+        h('h3', {}, [text('Debug Data')]),
+        debugDataPre,
     ]);
     popup.append(svg);
 
@@ -483,10 +485,24 @@ function openPopup(code: string) {
         popup.remove();
         svg.removeEventListener('click', close);
         window.removeEventListener('keydown', keydown);
+        stopRender = true;
     }
     svg.addEventListener('click', close);
 
     document.body.append(popup);
+
+    let stopRender = false;
+
+    let previous = Date.now();
+    function render(dt: number) {
+        if (stopRender) return;
+        debugDataPre.textContent = getDebugString();
+        debugDataPre.textContent +=
+            'FPS: ' + (1000 / (dt - previous)).toFixed(0);
+        requestAnimationFrame(render);
+        previous = dt;
+    }
+    requestAnimationFrame(render);
 
     function keydown(ev: KeyboardEvent) {
         if (ev.key === 'Escape' || ev.key === 'Enter') {
@@ -2309,20 +2325,38 @@ window.addEventListener('load', () => {
     requestAnimationFrame(render);
 });
 
-window.addEventListener('keydown', (ev) => {
-    if (ev.key === 'n' && ev.altKey)
-        menuActions.new(ev as any, undefined as any);
-    if (ev.key === 's' && ev.ctrlKey)
-        menuActions.save(ev as any, undefined as any);
-    if (ev.key === 'o' && ev.ctrlKey)
-        menuActions.load(ev as any, undefined as any);
-    if (ev.key === 'e' && ev.ctrlKey)
-        menuActions.export(ev as any, undefined as any);
-    if (ev.key === 't' && ev.altKey && !ev.ctrlKey)
-        menuActions.test(ev as any, undefined as any);
-    if (ev.key === 't' && ev.altKey && ev.ctrlKey)
-        menuActions.compile(ev as any, undefined as any);
-});
+window.addEventListener(
+    'keydown',
+    (ev) => {
+        if (lastSelected === 'compiled') return;
+        if (ev.key === 'n' && ev.altKey)
+            menuActions.new(ev as any, undefined as any);
+        if (ev.key === 's' && ev.ctrlKey)
+            menuActions.save(ev as any, undefined as any);
+        if (ev.key === 'o' && ev.ctrlKey)
+            menuActions.load(ev as any, undefined as any);
+        if (ev.key === 'e' && ev.ctrlKey)
+            menuActions.export(ev as any, undefined as any);
+        if (ev.key === 't' && ev.altKey && !ev.ctrlKey)
+            menuActions.test(ev as any, undefined as any);
+        if (ev.key === 't' && ev.altKey && ev.ctrlKey)
+            menuActions.compile(ev as any, undefined as any);
+        if (
+            ev.shiftKey &&
+            ev.ctrlKey &&
+            (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')
+        ) {
+            ev.preventDefault();
+            ev.cancelBubble = true;
+            let index = tabs.indexOf(lastSelected) + tabs.length;
+            if (ev.key === 'ArrowRight') index++;
+            else index--;
+            index %= tabs.length;
+            lastSelected = tabs[index];
+        }
+    },
+    { capture: true }
+);
 
 function awaitLoad(el: HTMLImageElement): Promise<void> {
     return new Promise((res, rej) => {
