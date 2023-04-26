@@ -4,6 +4,8 @@ import {
     getCurrentPalette,
     Image,
     ImageMask,
+    imgToPng,
+    parsedPalette,
     parseImage,
     parseMask,
     square,
@@ -15,21 +17,27 @@ import {
     Audio,
     getSound,
     Instrument,
+    loadMusic,
     parseAudio,
     playSound,
     Sound,
+    unloadMusic,
 } from '../../../rainbow32/src/audioUtils';
 import { download, sleep } from '../../../rainbow32/src/utils';
 import globals from './globals';
 import {
     getDebugString,
+    HEIGHT,
     loadGameByContents,
+    memory,
     onLoad,
     setDbgDataCollection,
     unload,
+    WIDTH,
 } from '../../../rainbow32/src/index';
-import { getCode } from './newCode';
+import { _getCode } from './newCode';
 import _default from '../../../rainbow32/src/fonts/default';
+import { b64DecodeUnicode, b64EncodeUnicode } from './b64';
 
 function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
     const palette = getCurrentPalette();
@@ -197,12 +205,16 @@ declare var monaco: any;
 let updateMasks = (newMasks: string[]) => {};
 let updateAudios = (newAudios: string[]) => {};
 let updateImages = (newImages: string[]) => {};
+let updateTexts = (newTexts: string[]) => {};
 let editorPostInit = () => {};
 let getImages: () => Record<string, string> = () => ({});
 let getMasks: () => Record<string, string> = getImages;
 let getAudios: () => Record<string, string> = getImages;
+let getTexts: () => Record<string, string> = getImages;
+let getCode: () => string = () => localStorage.getItem('code') || '';
 let compileAndPopup = () => {};
 let compileAndDownload = () => {};
+let addImage = (name?: string, image?: string) => {};
 
 type Requestify<T extends Record<string, any>> = {
     [K in keyof T]: T[K] extends Uint8Array ? number[] : T[K];
@@ -217,6 +229,7 @@ function serialize(): string {
             masks: localStorage.getItem('masks') || '{}',
             author: localStorage.getItem('author') || '',
             name: localStorage.getItem('name') || '',
+            texts: localStorage.getItem('texts') || '',
         });
     } catch (e) {
         createNotification(
@@ -236,6 +249,7 @@ function deserialize(data: string) {
         localStorage.setItem('audios', parsed.audios || '{}');
         localStorage.setItem('images', parsed.images || '{}');
         localStorage.setItem('masks', parsed.masks || '{}');
+        localStorage.setItem('texts', parsed.texts || '{}');
     } catch (e) {
         createNotification('Error', 'Error loading your project!', '#b91c1c');
         throw e;
@@ -261,7 +275,8 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
         save(ev) {
             ev.preventDefault();
             download(
-                'data:application/octet-stream;base64,' + btoa(serialize()),
+                'data:application/octet-stream;base64,' +
+                    btoa(b64EncodeUnicode(serialize())),
                 escapeName(localStorage.getItem('name') || 'unnamed') + '.rb32p'
             );
         },
@@ -287,13 +302,19 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
             const author = prompt('Author');
             const color = prompt('Background', '#ffffff');
             if (!color) return;
-            localStorage.setItem('code', getCode(color, name));
+            localStorage.setItem('code', _getCode(color, name));
             localStorage.setItem('audios', '{}');
             localStorage.setItem(
                 'images',
                 '{"_cartridge": "84:87:' + '8'.repeat(7308) + '"}'
             );
             localStorage.setItem('masks', '{}');
+            localStorage.setItem(
+                'texts',
+                `{"_name": ${JSON.stringify(name)}, "_author": ${JSON.stringify(
+                    author
+                )}}`
+            );
             localStorage.setItem('name', name);
             if (!author) localStorage.removeItem('author');
             else localStorage.setItem('author', author);
@@ -581,7 +602,6 @@ async function openPopup(code: string) {
 
     return popup;
 }
-
 function setupDrawing() {
     const drawElement = document.getElementsByClassName('draw')[0];
     if (!drawElement || !(drawElement instanceof HTMLDivElement)) return;
@@ -701,11 +721,35 @@ function setupDrawing() {
     ) as HTMLTextAreaElement;
     const loadBtn = textButton({ class: 'img-load-btn' }, [text('Load')]);
     const clearBtn = textButton({ class: 'img-clear-btn' }, [text('Clear')]);
+    const pngBtn = textButton({ class: 'img-download-btn' }, [
+        text('Save as PNG'),
+    ]);
+    const fromInput = h(
+        'input',
+        {
+            type: 'file',
+            accept: '.png',
+            id: 'img-upload',
+            name: 'img-upload',
+            style: 'display:none',
+        },
+        []
+    ) as HTMLInputElement;
     drawElement.append(
         canvas,
         h('div', { class: 'row', style: 'align-items: flex-end' }, [
             dataEl,
-            h('div', { class: 'row' }, [loadBtn, clearBtn]),
+            h('div', { class: 'row' }, [
+                loadBtn,
+                clearBtn,
+                pngBtn,
+                fromInput,
+                h(
+                    'label',
+                    { class: 'img-upload-btn text-button', for: 'img-upload' },
+                    [text('Load from png')]
+                ),
+            ]),
         ])
     );
     loadBtn.addEventListener('click', () => {
@@ -718,6 +762,58 @@ function setupDrawing() {
         for (let i = 0; i < img.buf.length; ++i)
             if (img.buf[i] !== 0xff) data[i] = img.buf[i];
         updateCanvas();
+    });
+    fromInput.addEventListener('change', async () => {
+        const f = fromInput.files?.item(0);
+        if (!f || !f.name.endsWith('.png')) return;
+        const src = URL.createObjectURL(f);
+        const img = h('img', { src }, []) as HTMLImageElement;
+        document.body.append(img);
+        await awaitLoad(img);
+        img.remove();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        ).data;
+        data = [];
+        width = canvas.width;
+        height = canvas.height;
+        widthIn.value = width.toString();
+        heightIn.value = height.toString();
+        for (let i = 0; i < imgData.length >> 2; ++i) {
+            if (imgData[(i << 2) + 3] < 127) continue;
+            const idx = parsedPalette.findIndex(
+                (v) =>
+                    v.r === imgData[i << 2] &&
+                    v.g === imgData[(i << 2) + 1] &&
+                    v.b === imgData[(i << 2) + 2]
+            );
+            if (idx < 0) continue;
+            data[i] = idx;
+        }
+        updateCanvas();
+    });
+    pngBtn.addEventListener('click', () => {
+        const buf = new Uint8Array(width * height);
+        for (let i = 0; i < buf.length; ++i)
+            buf[i] = data[i] !== undefined ? data[i] : 0xff;
+
+        download(
+            imgToPng({
+                width,
+                height,
+                buf,
+            }),
+            'image.png'
+        );
     });
     clearBtn.addEventListener('click', () => {
         width = 16;
@@ -1413,15 +1509,17 @@ function setupMusic() {
             }`;
 
         if (currentNote !== null && currentOctave !== null)
-            playSound(
-                {
-                    sound: currentNote,
-                    octave: currentOctave,
-                    halfToneStepUp: sharp,
-                },
-                instruments[channel - 1],
-                0.5,
-                0.5
+            loadMusic().then(() =>
+                playSound(
+                    {
+                        sound: currentNote!,
+                        octave: currentOctave!,
+                        halfToneStepUp: sharp,
+                    },
+                    instruments[channel - 1],
+                    0.5,
+                    0.5
+                ).then(unloadMusic)
             );
 
         octave.textContent = currentOctave?.toString() || '';
@@ -1434,15 +1532,17 @@ function setupMusic() {
     }
 
     instrumentSelector.addEventListener('change', () => {
-        playSound(
-            {
-                halfToneStepUp: false,
-                octave: 4,
-                sound: 'c',
-            },
-            (instrumentSelector.value || 'square-wave') as 'square-wave',
-            0.5,
-            0.25
+        loadMusic().then(() =>
+            playSound(
+                {
+                    halfToneStepUp: false,
+                    octave: 4,
+                    sound: 'c',
+                },
+                (instrumentSelector.value || 'square-wave') as 'square-wave',
+                0.5,
+                0.25
+            ).then(unloadMusic)
         );
 
         instruments[channel - 1] = (instrumentSelector.value ||
@@ -1791,81 +1891,9 @@ function setupEditor() {
                 compiling = true;
                 compileBtn.setAttribute('disabled', '');
                 downloadBtn.setAttribute('disabled', '');
-                const stringImgs = getImages();
-                const stringMasks = getMasks();
-                const stringAudios = getAudios();
-                const images: Record<string, Requestify<Image>> = {};
-                const masks: Record<string, Requestify<ImageMask>> = {};
-                const audios: Record<string, Requestify<Audio>> = {};
-
-                for (const k of Object.keys(stringImgs)) {
-                    try {
-                        const parsed = parseImage(stringImgs[k]);
-                        images[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringMasks)) {
-                    try {
-                        const parsed = parseMask(stringMasks[k]);
-                        masks[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringAudios)) {
-                    try {
-                        const parsed = parseAudio(stringAudios[k]);
-                        audios[k] = {
-                            channel1Instrument: parsed.channel1Instrument,
-                            channel2Instrument: parsed.channel2Instrument,
-                            channel3Instrument: parsed.channel3Instrument,
-                            channel4Instrument: parsed.channel4Instrument,
-                            length: parsed.length,
-                            channel1: [...parsed.channel1.values()],
-                            channel2: [...parsed.channel2.values()],
-                            channel3: [...parsed.channel3.values()],
-                            channel4: [...parsed.channel4.values()],
-                        };
-                    } catch {}
-                }
-
-                await fetch(window.location.origin + '/api/build', {
-                    method: 'post',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        code: '\n' + monacoEditor.getValue(),
-                        images,
-                        masks,
-                        audios,
-                    }),
-                })
-                    .then((res) =>
-                        !res.ok
-                            ? res.text().then((val) => ({ ok: false, val }))
-                            : res.text().then((val) => ({ ok: true, val }))
-                    )
-                    .then(({ ok, val }) => {
-                        if (!ok) {
-                            console.error(val);
-                            createNotification(
-                                'Error',
-                                'Failed to compile! Check the console (F12/Ctrl+Shift+I)',
-                                '#b91c1c'
-                            );
-                            return;
-                        } else {
-                            openPopup(val);
-                        }
-                    })
-                    .catch(() => {});
+                await compile(getCode()).then((code) =>
+                    code ? openPopup(code) : null
+                );
 
                 compileBtn.removeAttribute('disabled');
                 downloadBtn.removeAttribute('disabled');
@@ -1877,80 +1905,10 @@ function setupEditor() {
                 compiling = true;
                 compileBtn.setAttribute('disabled', '');
                 downloadBtn.setAttribute('disabled', '');
-                const stringImgs = getImages();
-                const stringMasks = getMasks();
-                const stringAudios = getAudios();
-                const images: Record<string, Requestify<Image>> = {};
-                const masks: Record<string, Requestify<ImageMask>> = {};
-                const audios: Record<string, Requestify<Audio>> = {};
-
-                for (const k of Object.keys(stringImgs)) {
-                    try {
-                        const parsed = parseImage(stringImgs[k]);
-                        images[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringMasks)) {
-                    try {
-                        const parsed = parseMask(stringMasks[k]);
-                        masks[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringAudios)) {
-                    try {
-                        const parsed = parseAudio(stringAudios[k]);
-                        audios[k] = {
-                            channel1Instrument: parsed.channel1Instrument,
-                            channel2Instrument: parsed.channel2Instrument,
-                            channel3Instrument: parsed.channel3Instrument,
-                            channel4Instrument: parsed.channel4Instrument,
-                            length: parsed.length,
-                            channel1: [...parsed.channel1.values()],
-                            channel2: [...parsed.channel2.values()],
-                            channel3: [...parsed.channel3.values()],
-                            channel4: [...parsed.channel4.values()],
-                        };
-                    } catch {}
-                }
-
-                await fetch(window.location.origin + '/api/build', {
-                    method: 'post',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        code: '\n' + monacoEditor.getValue(),
-                        images,
-                        masks,
-                        audios,
-                    }),
-                })
-                    .then((res) =>
-                        !res.ok
-                            ? res.text().then((val) => ({ ok: false, val }))
-                            : res.text().then((val) => ({ ok: true, val }))
-                    )
-                    .then(({ ok, val }) => {
-                        if (!ok) {
-                            console.error(val);
-                            alert('Failed to compile! Check console!');
-                            return;
-                        } else {
-                            download(
-                                'data:javascript;base64,' + btoa(val),
-                                'game.js'
-                            );
-                        }
-                    })
-                    .catch(() => {});
+                await compile(getCode()).then((val) => {
+                    if (!val) return;
+                    download('data:javascript;base64,' + btoa(val), 'game.js');
+                });
 
                 compileBtn.removeAttribute('disabled');
                 downloadBtn.removeAttribute('disabled');
@@ -1964,6 +1922,7 @@ function setupEditor() {
                 theme: 'vs-dark',
                 value: localStorage.getItem('code') || '',
             });
+            getCode = () => monacoEditor.getValue();
             let timeoutId = 0;
             function queueSave() {
                 saveText.textContent = 'Unsaved changes';
@@ -2014,6 +1973,11 @@ function setupEditor() {
                     'type ValidImagePath = never',
                     'defaults-images.d.ts'
                 ).dispose;
+            let disposeTexts =
+                monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                    'type ValidStringPath = never',
+                    'defaults-strings.d.ts'
+                ).dispose;
             updateMasks = function (masks) {
                 disposeMasks();
                 disposeMasks =
@@ -2048,9 +2012,25 @@ function setupEditor() {
                             (images.length < 1
                                 ? 'never'
                                 : images
+                                      .filter(
+                                          (el) => !el.startsWith('__screenshot')
+                                      )
                                       .map((el) => JSON.stringify(el))
                                       .join('|')),
                         'defaults-images.d.ts'
+                    ).dispose;
+            };
+            updateTexts = function (texts) {
+                disposeTexts();
+                disposeTexts =
+                    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                        'type ValidStringPath = ' +
+                            (texts.length < 1
+                                ? 'never'
+                                : texts
+                                      .map((el) => JSON.stringify(el))
+                                      .join('|')),
+                        'defaults-strings.d.ts'
                     ).dispose;
             };
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
@@ -2058,7 +2038,7 @@ function setupEditor() {
                 'globals.d.ts'
             );
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                'declare function getImage(path: ValidImagePath): Image;\ndeclare function getMask(path: ValidMaskPath): ImageMask;\ndeclare function getAudios(path: ValidAudioPath): Audio;',
+                'declare function getImage(path: ValidImagePath): Image;\ndeclare function getMask(path: ValidMaskPath): ImageMask;\ndeclare function getAudio(path: ValidAudioPath): Audio;\ndeclare function getString(path: ValidStringPath): string;',
                 'utils.d.ts'
             );
             editorPostInit();
@@ -2085,15 +2065,18 @@ function setupDataManager() {
     let images: Record<string, string> = {};
     let masks: Record<string, string> = {};
     let audios: Record<string, string> = {};
+    let texts: Record<string, string> = {};
 
     getImages = () => images;
     getMasks = () => masks;
     getAudios = () => audios;
+    getTexts = () => texts;
 
     editorPostInit = () => {
         updateMasks(Object.keys(masks));
         updateImages(Object.keys(images));
         updateAudios(Object.keys(audios));
+        updateTexts(Object.keys(texts));
     };
 
     try {
@@ -2111,14 +2094,21 @@ function setupDataManager() {
         if (!n || typeof n !== 'object') throw '';
         audios = n;
     } catch {}
+    try {
+        const n = JSON.parse(localStorage.getItem('texts') || '');
+        if (!n || typeof n !== 'object') throw '';
+        texts = n;
+    } catch {}
 
     function sync() {
         localStorage.setItem('images', JSON.stringify(images));
         localStorage.setItem('masks', JSON.stringify(masks));
         localStorage.setItem('audios', JSON.stringify(audios));
+        localStorage.setItem('texts', JSON.stringify(texts));
         updateMasks(Object.keys(masks));
         updateImages(Object.keys(images));
         updateAudios(Object.keys(audios));
+        updateTexts(Object.keys(texts));
     }
 
     const addImageBtn = textButton({ style: 'margin-left: auto' }, [
@@ -2145,7 +2135,7 @@ function setupDataManager() {
     if (!idataEl) return alert('No img data element found!');
     if (!iloadBtn) return alert('No img load btn found!');
 
-    function generateImageBtn(name?: string, data?: string) {
+    addImage = function generateImageBtn(name?: string, data?: string) {
         if (!name) name = prompt('Name (at least 2 character):') || '';
         if (!name || name?.length < 2)
             return alert(
@@ -2191,11 +2181,11 @@ function setupDataManager() {
 
         imagesElement.append(el);
         return el;
-    }
+    };
 
-    for (const [k, v] of Object.entries(images)) generateImageBtn(k, v);
+    for (const [k, v] of Object.entries(images)) addImage(k, v);
 
-    addImageBtn.addEventListener('click', () => generateImageBtn());
+    addImageBtn.addEventListener('click', () => addImage());
 
     const addMaskBtn = textButton({ style: 'margin-left: auto' }, [
         text('Add'),
@@ -2275,15 +2265,15 @@ function setupDataManager() {
     const addAudioBtn = textButton({ style: 'margin-left: auto' }, [
         text('Add'),
     ]);
+    const audioElement = h('div', {}, []);
     element.append(
         h('div', { class: 'line', style: 'margin-top: 7px' }, []),
         h('div', { class: 'row' }, [
             h('h3', { style: 'margin-top: 7px;' }, [text('Audio')]),
             addAudioBtn,
-        ])
+        ]),
+        audioElement
     );
-    const audioElement = h('div', {}, []);
-    element.append(audioElement);
 
     const adataEl = document.getElementsByClassName(
         'audio-data-input'
@@ -2331,7 +2321,7 @@ function setupDataManager() {
         });
 
         removeBtn.addEventListener('click', () => {
-            if (confirm('Do you want to overwrite ' + name)) {
+            if (confirm('Do you want to remove ' + name)) {
                 el.remove();
                 delete audios[name!];
                 sync();
@@ -2345,6 +2335,69 @@ function setupDataManager() {
     for (const [k, v] of Object.entries(audios)) generateAudioBtn(k, v);
 
     addAudioBtn.addEventListener('click', () => generateAudioBtn());
+
+    const addTextBtn = textButton({ style: 'margin-left: auto' }, [
+        text('Add'),
+    ]);
+    const textElement = h('div', {}, []);
+    element.append(
+        h('div', { class: 'line', style: 'margin-top: 7px' }, []),
+        h('div', { class: 'row' }, [
+            h('h3', { style: 'margin-top: 3px' }, [text('Strings')]),
+            addTextBtn,
+        ]),
+        textElement
+    );
+
+    function generateTextBtn(name?: string, data?: string) {
+        if (!name) name = prompt('Name (at least 2 character):') || '';
+        data ||= prompt('Data') || '';
+        if (!data || !name) return;
+        texts[name] = data;
+        sync();
+        const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
+            text('Overwrite'),
+        ]);
+        const peekBtn = textButton({}, [text('Peek')]);
+        const removeBtn = textButton({}, [text('Remove')]);
+        const el = h('div', { class: 'row' }, [
+            h('h4', {}, [text(name)]),
+            overwriteBtn,
+            removeBtn,
+            peekBtn,
+        ]);
+
+        overwriteBtn.addEventListener('click', () => {
+            const data = prompt('New Data', texts[name!]);
+            if (data === '') {
+                if (confirm('Do you want to remove ' + name)) {
+                    el.remove();
+                    delete texts[name!];
+                    sync();
+                }
+                return;
+            }
+            if (!data) return;
+            texts[name!] = data;
+            sync();
+        });
+
+        removeBtn.addEventListener('click', () => {
+            if (confirm('Do you want to remove ' + name)) {
+                el.remove();
+                delete texts[name!];
+                sync();
+            }
+        });
+
+        peekBtn.addEventListener('click', () => alert(texts[name!]));
+
+        textElement.append(el);
+        return el;
+    }
+
+    for (const [k, v] of Object.entries(texts)) generateTextBtn(k, v);
+    addTextBtn.addEventListener('click', () => generateTextBtn());
 }
 function setupMenu() {
     const topbar = document.getElementsByClassName('topbar')[0] as
@@ -2380,6 +2433,7 @@ function setupMenu() {
             loadFileInput.files
                 .item(0)
                 ?.text()
+                .then((val) => b64DecodeUnicode(val))
                 .then((val) => deserialize(val))
                 .then(() => location.reload());
         }
@@ -2414,7 +2468,9 @@ window.addEventListener('load', () => {
     document.body
         .getElementsByClassName('keybinds')[0]
         ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));
+
     function render() {
+        if (lastSelected === 'music') loadMusic();
         for (let i = 0; i < document.body.children.length; ++i) {
             if (!document.body.children[i].hasAttribute('data-name')) continue;
             if (
@@ -2432,6 +2488,17 @@ window.addEventListener('load', () => {
 window.addEventListener(
     'keydown',
     (ev) => {
+        if (lastSelected === 'compiled' && ev.key === 'F2') {
+            const name = `__screenshot-${Date.now()}`;
+            const image = stringifyImage({
+                width: WIDTH,
+                height: HEIGHT,
+                buf: memory.subarray(1),
+            });
+            addImage(name, image);
+            ev.preventDefault();
+            ev.cancelBubble = true;
+        }
         if (lastSelected === 'compiled') return;
         if (ev.key === 'n' && ev.altKey)
             menuActions.new(ev as any, undefined as any);
@@ -2560,17 +2627,63 @@ function customWriteText(
     }
 }
 
-function compile(code: string): Promise<string | void> {
-    return fetch(window.location.origin + '/api/build', {
+async function compile(code: string): Promise<string | void> {
+    const stringImgs = getImages();
+    const stringMasks = getMasks();
+    const stringAudios = getAudios();
+    const images: Record<string, Requestify<Image>> = {};
+    const masks: Record<string, Requestify<ImageMask>> = {};
+    const audios: Record<string, Requestify<Audio>> = {};
+
+    for (const k of Object.keys(stringImgs)) {
+        if (k.startsWith('__screenshot')) continue;
+        try {
+            const parsed = parseImage(stringImgs[k]);
+            images[k] = {
+                buf: [...parsed.buf.values()],
+                height: parsed.height,
+                width: parsed.width,
+            };
+        } catch {}
+    }
+    for (const k of Object.keys(stringMasks)) {
+        try {
+            const parsed = parseMask(stringMasks[k]);
+            masks[k] = {
+                buf: [...parsed.buf.values()],
+                height: parsed.height,
+                width: parsed.width,
+            };
+        } catch {}
+    }
+    for (const k of Object.keys(stringAudios)) {
+        try {
+            const parsed = parseAudio(stringAudios[k]);
+            audios[k] = {
+                channel1Instrument: parsed.channel1Instrument,
+                channel2Instrument: parsed.channel2Instrument,
+                channel3Instrument: parsed.channel3Instrument,
+                channel4Instrument: parsed.channel4Instrument,
+                length: parsed.length,
+                channel1: [...parsed.channel1.values()],
+                channel2: [...parsed.channel2.values()],
+                channel3: [...parsed.channel3.values()],
+                channel4: [...parsed.channel4.values()],
+            };
+        } catch {}
+    }
+
+    return await fetch(window.location.origin + '/api/build', {
         method: 'post',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            code: '\n' + code,
-            images: getImages(),
-            masks: getMasks(),
-            audios: getAudios(),
+            code: '\n' + getCode(),
+            images,
+            masks,
+            audios,
+            texts: getTexts(),
         }),
     })
         .then((res) =>
@@ -2587,7 +2700,9 @@ function compile(code: string): Promise<string | void> {
                     '#b91c1c'
                 );
                 return;
-            } else return val;
+            } else {
+                return val;
+            }
         })
         .catch(() => {});
 }

@@ -220,7 +220,7 @@ function $move(up: boolean) {
     if (currentDevice === 'cartridges')
         max = cartridges ? cartridges?.length + 1 : 1;
     else if (currentDevice) max = files.length;
-    else max = devices.length + 2;
+    else max = devices.length + 3;
 
     let newSelected = 0;
 
@@ -356,7 +356,7 @@ window.addEventListener('load', () => {
         } else if (ev.key === 'ArrowUp' || ev.key === 'w') {
             $move(true);
             ev.preventDefault();
-        } else if (ev.key === 'ArrowRight' || ev.key === 'a') {
+        } else if (ev.key === 'ArrowRight' || ev.key === 'a' || ev.key === 'Enter') {
             $open();
             ev.preventDefault();
         } else if (ev.key === 'ArrowLeft' || ev.key === 'd') {

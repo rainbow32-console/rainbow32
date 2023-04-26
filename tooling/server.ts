@@ -85,6 +85,7 @@ const imports = [
     'audioUtils',
     'utils',
     'ImageRenderer',
+    'BoxCollider',
     'createComponent',
     'comp',
     'component',
@@ -168,7 +169,9 @@ server.post('/api/build', async (req: any, res: any) => {
             images
         )};const b:any=${stringify(req.body.masks)};const c:any=${stringify(
             audios
-        )};const d=(globalThis as any);d.getImage=(path:any)=>a[path];d.getMask=(path:any)=>b[path];d.getAudio=(path:any)=>c[path];})();\n\n${
+        )};const d=(globalThis as any);const e=${JSON.stringify(
+            req.body.texts || {}
+        )};d.getImage=(path:any)=>a[path];d.getMask=(path:any)=>b[path];d.getAudio=(path:any)=>c[path];d.getString=(path:any)=>e[path];})();\n\n${
             req.body.code
         }`;
 

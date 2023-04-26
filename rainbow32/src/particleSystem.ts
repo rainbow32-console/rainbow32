@@ -1,6 +1,13 @@
 import { debugData, HEIGHT, isCollectingDebugData, WIDTH } from '.';
 import { Vec2 } from './gameObject';
-import { Image, markAsDirty, putImage, square } from './imageUtils';
+import {
+    applyImageMask,
+    Image,
+    ImageMask,
+    markAsDirty,
+    putImage,
+    square,
+} from './imageUtils';
 
 export interface Particle {
     end: number;
@@ -20,13 +27,16 @@ export function addParticle(
     color: number,
     gravity: number,
     force: Vec2,
-    oob?: boolean
+    oob?: boolean,
+    mask?: ImageMask
 ) {
     particles.push({
         end: life < 0 ? -1 : Date.now() + life,
         force,
         gravity,
-        image: square(size, size, color),
+        image: mask
+            ? applyImageMask(square(size, size, color), mask)
+            : square(size, size, color),
         pos,
         fallsOOB: !!oob,
     });

@@ -78,7 +78,7 @@ export interface Image {
 }
 
 let currentPalette = defaultPalette;
-let parsedPalette: Record<'r' | 'g' | 'b' | 'a', number>[] = [];
+export let parsedPalette: Record<'r' | 'g' | 'b' | 'a', number>[] = [];
 
 for (let i = 0; i < currentPalette.length; ++i)
     parsedPalette[i] = getColor$(i, currentPalette);

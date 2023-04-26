@@ -124,7 +124,7 @@ export function writeText(
     spaceWidth ||= 5;
     const lines: { y: number; start: number; end: number }[] = [];
 
-    const maxLength = Math.min(maxWidth - x, calculateWidth(text, spaceWidth));
+    const maxLength = Math.min(maxWidth, calculateWidth(text, spaceWidth));
     const linePadLeft = centered
         ? text.split('\n').map((el) => {
               return Math.max(

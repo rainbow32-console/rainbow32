@@ -20,7 +20,13 @@ f = f
                 .replaceAll(/: +/g, ':')
                 .replaceAll(/, +/g, ',')
                 .replaceAll(/ +> +/g, '>')
-                .replaceAll(/ \{+/g, '{') +
+                .replaceAll(/ \{+/g, '{')
+                .replaceAll(
+                    'url(./pixeloid.ttf)',
+                    `url(data:font/ttf;base64,${readFileSync(
+                        join(__dirname, 'pixeloid.ttf')
+                    ).toString('base64')})`
+                ) +
             '</style>'
     );
 writeFileSync(join(__dirname, 'packaged.html'), f);

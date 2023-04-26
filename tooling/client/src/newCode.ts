@@ -1,4 +1,4 @@
-export function getCode(color: string, name: string): string {
+export function _getCode(color: string, name: string): string {
     return `const MainScene = new Scene<{}>({
     name: 'Main',
     gameObjects: [],

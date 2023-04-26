@@ -19,7 +19,7 @@ body {
     height: 100%;
 }
 :root {
-    --bg-col: #fff;
+    --bg-col: #000;
 }
 .content {
     margin-top: 51vh;
@@ -100,16 +100,19 @@ body {
     padding-top: 0px;
     overflow: hidden;
     width: auto;
-    height: 100vh;
-    aspect-ratio: 200/180;
+    height: 95vh;
+    aspect-ratio: 206/180;
     position: absolute;
-    top: 0px;
+    top: 5vh;
     bottom: 0px;
     left: 0px;
     right: 0px;
     margin: 0px auto;
     z-index: 20;
-    background-color: white;
+    background-color: #000;
+    font-size: 18px;
+    font-weight: bold;
+    color: white;
 }
 
 .path {

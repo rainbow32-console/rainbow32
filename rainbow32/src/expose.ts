@@ -1,4 +1,5 @@
 import { ImageRenderer } from './components/imageRenderer';
+import { BoxCollider } from './components/BoxCollisions';
 import _default from './fonts/default';
 import default_monospace from './fonts/default_monospace';
 import legacy from './fonts/legacy';
@@ -20,7 +21,7 @@ import {
     currentTextMasks,
     writeText,
 } from './text';
-import { addParticle, removeParticle } from './particleSystem';
+import { addParticle, removeParticle, removeParticles } from './particleSystem';
 
 function expose(name: string, variable: any) {
     (globalThis as any)[name] = variable;
@@ -67,4 +68,6 @@ export function exposeToWorld() {
     expose('calculateWidth', calculateWidth);
     expose('addParticle', addParticle);
     expose('removeParticle', removeParticle);
+    expose('removeParticles', removeParticles);
+    expose('BoxCollider', BoxCollider);
 }

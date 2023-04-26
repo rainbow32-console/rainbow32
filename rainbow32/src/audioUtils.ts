@@ -294,7 +294,7 @@ function playTriangleTune(
 ): Promise<void> {
     return playTune(vol, freq, time, 'triangle');
 }
-const ctx = new AudioContext();
+let ctx = new AudioContext();
 function playTune(
     vol: number,
     freq: number,
@@ -427,8 +427,20 @@ export function unloadMusic() {
 }
 
 export async function loadMusic(): Promise<void> {
-    if (ctx.state !== 'suspended') return;
+    if (ctx.state === 'running') return;
+    else if (ctx.state === 'closed') {
+        ctx = new AudioContext();
+        return;
+    }
     try {
-        return await ctx.resume();
+        await ctx.resume();
     } catch {}
+}
+
+export function recreateContext() {
+    ctx = new AudioContext();
+}
+
+export function contextState() {
+    return ctx.state;
 }

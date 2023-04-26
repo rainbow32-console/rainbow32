@@ -8,6 +8,11 @@ function importExposed(name: string): any {
  *
  */
 
+export const BoxCollider = importExposed('BoxCollider') as Component<{
+    width: number;
+    height: number;
+    oldCollisions: GameObject[];
+}>;
 export function registerGame(game: GameFile): void {
     (globalThis as any).__registeredGame = game;
 }
@@ -32,9 +37,11 @@ export const ParticleSystem = {
         color: number,
         gravity: number,
         force: Vec2,
-        oob?: boolean
+        oob?: boolean,
+        mask?: ImageMask
     ) => Particle,
     removeParticle: importExposed('removeParticle') as (p: Particle) => void,
+    removeParticles: importExposed('removeParticles') as () => void,
 };
 export const ImageRenderer = importExposed('ImageRenderer') as Component<void>;
 export const createComponent = importExposed('createComponent') as <T>(
@@ -97,6 +104,8 @@ export const TextUtils = {
  *
  */
 
+export type ImageRenderer = typeof ImageRenderer;
+export type BoxCollider = typeof BoxCollider;
 export type Font = Record<string, ImageMask>;
 export type Button = 'up' | 'down' | 'left' | 'right' | 'u' | 'i' | 'o' | 'p';
 export interface Vec2 {
@@ -136,6 +145,8 @@ export interface GameObjectOptions {
     opacity?: number;
     transform?: Partial<Transform>;
     customRenderer?: boolean;
+    events?: Record<string, (obj: GameObject, ...args: any[]) => void>;
+    eventsOnce?: Record<string, (obj: GameObject, ...args: any[]) => void>;
 }
 export type ComponentEntry<T> = {
     component: Component<T>;
@@ -225,20 +236,36 @@ export interface _GameObject {
     transform: Transform;
     image: Image;
     mask?: ImageMask;
-    opacity: number;
+    readonly name: string;
     removeComponent(component: string): void;
     getComponent<T extends Component<any>>(component: string): T | undefined;
+    getComponentData<T extends Component<any>>(
+        component: string
+    ): Required<Parameters<T['init']>[0]> | undefined;
     remove(): void;
     init(): void;
     render(dt: number): void;
+
+    off(name: string, cb: (obj: GameObject, ...args: any[]) => void): void;
+    once(name: string, cb: (obj: GameObject, ...args: any[]) => void): void;
+    on(name: string, cb: (obj: GameObject, ...args: any[]) => void): void;
+    emitEvent(name: string, args: any[]): void;
 }
 
 export interface _Scene {
     readonly name: string;
+    objects: _GameObject[];
     init(): void;
     remove(): void;
     update(dt: number): void;
     addObject(obj: _GameObject): void;
+    objectAmount(): number;
+    getObjectByName(name: string): GameObject | undefined
+    getObjectsByName(name: string): GameObject[]
+    removeObject(object: GameObject): void;
+    removeObjects(...objects: GameObject[]): void;
+    removeObjectByName(name: string): void;
+    removeObjectsByName(...names: string[]): void;
 }
 export interface _SceneManager {
     setScenes(newScenes: _Scene[], defaultSelected?: number): void;

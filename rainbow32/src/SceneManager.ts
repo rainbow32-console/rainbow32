@@ -1,5 +1,6 @@
 import { debugData, isCollectingDebugData } from '.';
 import { GameObject } from './gameObject';
+import { removeParticles } from './particleSystem';
 
 export interface UserScene<T> {
     beforeInit(scene: Scene<T>): T;
@@ -14,7 +15,7 @@ export interface UserScene<T> {
 
 export class Scene<T extends Record<string, any>> {
     private uScene: UserScene<T>;
-    private objects: GameObject[] = [];
+    objects: GameObject[] = [];
     readonly name: string;
     private config: T;
 
@@ -41,8 +42,11 @@ export class Scene<T extends Record<string, any>> {
 
     update(dt: number) {
         this.uScene.beforeUpdate?.(this.config, this, dt);
-        for (let i = 0; i < this.objects.length; ++i)
+        for (let i = 0; i < this.objects.length; ++i) {
+            if (SceneManager.getScene() !== this) break;
             this.objects[i].render(dt);
+        }
+        if (SceneManager.getScene() !== this) return;
         this.uScene.afterUpdate?.(this.config, this, dt);
     }
 
@@ -52,6 +56,30 @@ export class Scene<T extends Record<string, any>> {
 
     objectAmount(): number {
         return this.objects.length;
+    }
+
+    getObjectByName(name: string): GameObject | undefined {
+        return this.objects.find((el) => el.name === name);
+    }
+
+    getObjectsByName(name: string): GameObject[] {
+        return this.objects.filter((el) => el.name === name);
+    }
+
+    removeObject(object: GameObject) {
+        this.objects = this.objects.filter((el) => el !== object);
+    }
+
+    removeObjects(...objects: GameObject[]) {
+        this.objects = this.objects.filter((el) => !objects.includes(el));
+    }
+
+    removeObjectByName(name: string) {
+        this.objects = this.objects.filter((el) => el.name !== name);
+    }
+
+    removeObjectsByName(...names: string[]) {
+        this.objects = this.objects.filter((el) => !names.includes(el.name));
     }
 }
 
@@ -88,9 +116,10 @@ export const SceneManager = {
             currentlySelected = i;
             scenes[currentlySelected]?.init();
         }
+        removeParticles();
     },
     update(dt: number) {
-        if (isCollectingDebugData) debugData['Update State'] = 'Scene'
+        if (isCollectingDebugData) debugData['Update State'] = 'Scene';
         scenes[currentlySelected]?.update(dt);
         if (!isCollectingDebugData) return;
         debugData['Current Scene'] = scenes[currentlySelected]

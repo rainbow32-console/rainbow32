@@ -1,5 +1,10 @@
 // import game from './game/game';
-import { loadMusic, unloadMusic } from './audioUtils';
+import {
+    contextState,
+    loadMusic,
+    recreateContext,
+    unloadMusic,
+} from './audioUtils';
 import { canvasFullScreen, isFocused, show } from './electron';
 import { exposeToWorld } from './expose';
 import {
@@ -12,6 +17,12 @@ import {
 } from './imageUtils';
 import { removeParticles, updateParticles } from './particleSystem';
 import { Scene, SceneManager } from './SceneManager';
+import {
+    putStartupImage,
+    runErrorAnimation,
+    runLoadAnimation,
+    runStartupAnimation,
+} from './startup';
 import { download } from './utils';
 
 export type Button = 'up' | 'down' | 'left' | 'right' | 'u' | 'i' | 'o' | 'p';
@@ -149,6 +160,24 @@ window.addEventListener('keydown', (ev) => {
         if (canvasFullScreen()) return;
         buttonElements.start?.classList.add('active');
         setTimeout(() => buttonElements.start?.classList.remove('active'), 100);
+    } else if (ev.key === 'F10') {
+        ev.preventDefault();
+        console.log(
+            '%c[Rainbow32]',
+            'font-weight: bold; color: #1e40af;',
+            'Debug Data Printout'
+        );
+        for (const [k, v] of Object.entries(debugData))
+            console.log('%c%s:', 'font-weight: bold;', k, v);
+        console.log('%cRender times', 'font-weight: bold');
+        const _renderTimes: Record<number, number> = {};
+        for (const t of renderTimes) {
+            _renderTimes[t] ||= 0;
+            _renderTimes[t]++;
+        }
+        for (const [k, v] of Object.entries(_renderTimes))
+            console.log('%dms: %d', k, v);
+        console.log('JSON:', { ...debugData, renderTimes });
     }
 });
 window.addEventListener('keyup', (ev) => {
@@ -181,74 +210,81 @@ let stopNextRender = false;
 const renderTimes: number[] = [];
 
 function render(dt: number) {
-    for (let i = 0; i < WIDTH * HEIGHT; ++i) memory[i + 1] = 0xff;
-    const start = Date.now();
-    if (stopNextRender || !frame || !frame.isConnected || !done)
-        return (stopNextRender = false);
-    if (!currentGame) return;
-    callEvent('beforeRender', [ctx, dt - previous]);
+    try {
+        for (let i = 0; i < WIDTH * HEIGHT; ++i) memory[i + 1] = 0xff;
+        const start = Date.now();
+        if (stopNextRender || !frame || !frame.isConnected || !done || paused)
+            return (stopNextRender = false);
+        if (!currentGame) return;
+        callEvent('beforeRender', [ctx, dt - previous]);
 
-    if (isCollectingDebugData) debugData['Update State'] = 'Buttons';
-    for (let i = 0; i < buttonIds.length; i++)
-        buttons[buttonIds[i]].press =
-            (memory[0] >> i) & 1 && !((pressedButtonsPreviously[0] >> i) & 1)
-                ? true
-                : false;
+        if (isCollectingDebugData) debugData['Update State'] = 'Buttons';
+        for (let i = 0; i < buttonIds.length; i++)
+            buttons[buttonIds[i]].press =
+                (memory[0] >> i) & 1 &&
+                !((pressedButtonsPreviously[0] >> i) & 1)
+                    ? true
+                    : false;
 
-    if (ctx && !isFocused()) {
-        removeDirtyMark();
-        if (isCollectingDebugData) debugData['Update State'] = 'Global';
-        currentGame.update?.(dt - previous);
-        if (isCollectingDebugData) debugData['Update State'] = 'Particles';
-        updateParticles(dt - previous);
-        SceneManager.update(dt - previous);
-        if (isCollectingDebugData) debugData['Update State'] = 'Screen';
-        const buf = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
-        if (isDirty) {
-            ctx.clearRect(0, 0, WIDTH, HEIGHT);
-            for (let h = 0; h < HEIGHT; ++h)
-                for (let w = 0; w < WIDTH; ++w) {
-                    if (memory[h * WIDTH + w + 1] !== 0xff) {
-                        const color = getColor(memory[h * WIDTH + w + 1]);
-                        const offset = (h * WIDTH + w) * 4;
-                        buf[offset] = color.r;
-                        buf[offset + 1] = color.g;
-                        buf[offset + 2] = color.b;
-                        buf[offset + 3] = color.a;
+        if (ctx && !isFocused()) {
+            removeDirtyMark();
+            if (isCollectingDebugData) debugData['Update State'] = 'Global';
+            currentGame.update?.(dt - previous);
+            if (isCollectingDebugData) debugData['Update State'] = 'Particles';
+            updateParticles(dt - previous);
+            SceneManager.update(dt - previous);
+            if (isCollectingDebugData) debugData['Update State'] = 'Screen';
+            const buf = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+            if (isDirty) {
+                ctx.clearRect(0, 0, WIDTH, HEIGHT);
+                for (let h = 0; h < HEIGHT; ++h)
+                    for (let w = 0; w < WIDTH; ++w) {
+                        if (memory[h * WIDTH + w + 1] !== 0xff) {
+                            const color = getColor(memory[h * WIDTH + w + 1]);
+                            const offset = (h * WIDTH + w) * 4;
+                            buf[offset] = color.r;
+                            buf[offset + 1] = color.g;
+                            buf[offset + 2] = color.b;
+                            buf[offset + 3] = color.a;
+                        }
                     }
-                }
 
-            ctx.putImageData(new ImageData(buf, WIDTH, HEIGHT), 0, 0);
+                ctx.putImageData(new ImageData(buf, WIDTH, HEIGHT), 0, 0);
+            }
         }
-    }
 
-    previous = dt;
-    pressedButtonsPreviously[0] = memory[0];
-    renderTimes.push(Date.now() - start);
-    if (Date.now() - start > 30)
-        console.warn('[Violation] Screen Update took over 30 milliseconds');
-    requestAnimationFrame(render);
-    callEvent('afterRender', [ctx, dt - previous]);
+        previous = dt;
+        pressedButtonsPreviously[0] = memory[0];
+        renderTimes.push(Date.now() - start);
+        if (Date.now() - start > 30)
+            console.warn('[Violation] Screen Update took over 30 milliseconds');
+        requestAnimationFrame(render);
+        callEvent('afterRender', [ctx, dt - previous]);
 
-    if (!isCollectingDebugData) return;
-    debugData['Update State'] = 'Idle';
-    debugData['Render (ms)'] = Date.now() - start + 'ms';
-    debugData['Buttons Down'] = '';
-    debugData['Buttons Pressed'] = '';
-    for (let i = 0; i < buttonIds.length; ++i) {
-        if (buttons[buttonIds[i]].press)
-            debugData['Buttons Pressed'] += buttonIds[i] + ' ';
-        if (buttons[buttonIds[i]].down)
-            debugData['Buttons Down'] += buttonIds[i] + ' ';
+        if (!isCollectingDebugData) return;
+        debugData['Update State'] = 'Idle';
+        debugData['Render (ms)'] = Date.now() - start + 'ms';
+        debugData['Buttons Down'] = '';
+        debugData['Buttons Pressed'] = '';
+        for (let i = 0; i < buttonIds.length; ++i) {
+            if (buttons[buttonIds[i]].press)
+                debugData['Buttons Pressed'] += buttonIds[i] + ' ';
+            if (buttons[buttonIds[i]].down)
+                debugData['Buttons Down'] += buttonIds[i] + ' ';
+        }
+        debugData['Buttons Down'] ||= 'None';
+        debugData['Buttons Pressed'] ||= 'None';
+        debugData['Mean Update Time'] =
+            (
+                renderTimes.reduce((a, b) => a + b, 0) / renderTimes.length
+            ).toFixed(2) + 'ms';
+        debugData['Worst Update Time'] =
+            renderTimes.reduce((a, b) => (a > b ? a : b), 0) + 'ms';
+    } catch (e: any) {
+        stopGame();
+        if (ctx) runErrorAnimation(ctx);
+        console.error('Failed to render frame!\n╰─> %s', e?.stack || e);
     }
-    debugData['Buttons Down'] ||= 'None';
-    debugData['Buttons Pressed'] ||= 'None';
-    debugData['Mean Update Time'] =
-        (renderTimes.reduce((a, b) => a + b, 0) / renderTimes.length).toFixed(
-            2
-        ) + 'ms';
-    debugData['Worst Update Time'] =
-        renderTimes.reduce((a, b) => (a > b ? a : b), 0) + 'ms';
 }
 
 let frame: HTMLElement | null = null;
@@ -325,8 +361,8 @@ export async function unload() {
     for (const btn of buttonIds) (buttonElements[btn] as any) = undefined;
     (buttonElements.start as any) = undefined;
     (buttonElements.stop as any) = undefined;
+    frame = null;
 
-    if (frame?.isConnected) frame.remove();
     currentGame = null;
     done = false;
     if (!isCollectingDebugData) return;
@@ -361,6 +397,17 @@ export type Rainbow32ConsoleElementGenerator = (
     opts: Rainbow32ConsoleElementGeneratorOptions
 ) => Rainbow32ConsoleElements;
 
+let paused: boolean;
+
+function startRender(dt: number) {
+    previous = dt;
+    render(dt);
+}
+
+export function isLoaded() {
+    return done && frame && frame.isConnected;
+}
+
 export async function onLoad(
     element?: HTMLElement,
     withControls?: boolean,
@@ -377,34 +424,7 @@ export async function onLoad(
     if (frame) frame.remove();
     frame = element;
 
-    const generated = generator?.({
-        canvas: {
-            aspectRatio: '200/180',
-            bgCol: 'var(--bg-col)',
-            height: canvasFullScreen() || !withControls ? '100%' : '50%',
-            zIndex: 10,
-        },
-        classes: {
-            canvas: '__rainbow32_canvas',
-            fileInput: '__rainbow32_gamefile',
-            buttons: {
-                down: '__rainbow32_button_down',
-                right: '__rainbow32_button_right',
-                up: '__rainbow32_button_up',
-                left: '__rainbow32_button_left',
-                i: '__rainbow32_button_i',
-                o: '__rainbow32_button_o',
-                u: '__rainbow32_button_u',
-                p: '__rainbow32_button_p',
-                start: '__rainbow32_button_start',
-                stop: '__rainbow32_button_stop',
-            },
-            button: '__rainbow32_button',
-            textButton: '__rainbow32_textbutton',
-        },
-        withControls: !canvasFullScreen() && withControls,
-        frame: element,
-    });
+    const generated = generator?.(defaultElGenProps(frame, canvasFullScreen() || !withControls));
 
     const canvas = generated?.canvas
         ? generated.canvas
@@ -427,6 +447,9 @@ export async function onLoad(
     if (!ctx) return console.error('Error: Could not initialize 2d context');
     ctx.imageSmoothingEnabled = false;
 
+    if (contextState() !== 'running') recreateContext();
+    const p = runStartupAnimation(ctx);
+
     function keyDown(ev: KeyboardEvent) {
         if (!frame || !frame.isConnected) return;
         if (ev.key === 'F2' && !canvasFullScreen()) {
@@ -438,10 +461,28 @@ export async function onLoad(
                     now.getDay() + 1
                 }-${now.getHours()}-${now.getSeconds()}-${now.getMilliseconds()}.png`
             );
+        } else if (ev.key === ' ') {
+            paused = !paused;
+            if (!paused && currentGame) requestAnimationFrame(startRender);
+            else if (!paused) ctx?.clearRect(0, 0, WIDTH, HEIGHT);
         }
     }
     window.addEventListener('keydown', keyDown);
-    onUnload.push(() => window.removeEventListener('keydown', keyDown));
+
+    function loseFocus() {
+        stopNextRender = true;
+    }
+    function gainFocus() {
+        requestAnimationFrame(startRender);
+    }
+
+    window.addEventListener('blur', loseFocus);
+    window.addEventListener('focus', gainFocus);
+    onUnload.push(() => {
+        window.removeEventListener('keydown', keyDown);
+        window.removeEventListener('blur', loseFocus);
+        window.removeEventListener('focus', gainFocus);
+    });
 
     if (canvasFullScreen() || !withControls) {
         const tmpEl = document.createElement('div');
@@ -536,10 +577,9 @@ export async function onLoad(
         generated?.buttons?.start?.remove();
         generated?.buttons?.stop?.remove();
     }
-    if (!isCollectingDebugData) return;
-    debugData['Game State'] = 'Idle';
+    if (isCollectingDebugData) debugData['Game State'] = 'Idle';
 
-    loadMusic();
+    return Promise.allSettled([p]);
 }
 
 let currentGame: GameFile | null = null;
@@ -584,30 +624,38 @@ function callEvent(event: string, args: any[]) {
 }
 
 export async function loadGame(game: GameFile) {
-    await loadMusic();
-    if (isCollectingDebugData) {
-        debugData['Game State'] = 'Running';
-        debugData['Game Name'] = game.name;
+    if (!ctx) return;
+    try {
+        await loadMusic();
+        if (isCollectingDebugData) {
+            debugData['Game State'] = 'Running';
+            debugData['Game Name'] = game.name;
+        }
+        if (!frame || !frame.isConnected) return;
+        currentGame = game;
+        ctx?.canvas.setAttribute(
+            'style',
+            '--bg-col: ' +
+                game.bg +
+                '; ' +
+                (ctx.canvas
+                    .getAttribute('style')
+                    ?.replace(
+                        /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\))/,
+                        ''
+                    ) || '')
+        );
+        if (game.palette) setCurrentPalette(game.palette);
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        game?.init?.();
+        if (game.scenes) SceneManager.setScenes(game.scenes, game.defaultScene);
+        callEvent('afterLoad', [game]);
+        requestAnimationFrame(startRender);
+    } catch (e: any) {
+        stopGame();
+        console.error('Could not load Game!\n╰─> %s', e?.stack || e);
+        runErrorAnimation(ctx);
     }
-    if (!frame || !frame.isConnected) return;
-    currentGame = game;
-    ctx?.canvas.setAttribute(
-        'style',
-        '--bg-col: ' +
-            game.bg +
-            '; ' +
-            (ctx.canvas
-                .getAttribute('style')
-                ?.replace(
-                    /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\))/,
-                    ''
-                ) || '')
-    );
-    if (game.palette) setCurrentPalette(game.palette);
-    game?.init?.();
-    if (game.scenes) SceneManager.setScenes(game.scenes, game.defaultScene);
-    callEvent('afterLoad', [game]);
-    requestAnimationFrame(render);
 }
 
 export function stopGame(): Promise<void> {
@@ -624,56 +672,48 @@ export function stopGame(): Promise<void> {
     if (ctx) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx?.canvas.setAttribute(
         'style',
-        '--bg-col: #fff; ' +
+        '--bg-col: #000; ' +
             (ctx.canvas
                 .getAttribute('style')
                 ?.replace(
-                    /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\))/,
+                    /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\));/,
                     ''
                 ) || '')
     );
+    if (ctx) putStartupImage(ctx);
     callEvent('afterStop', []);
     return new Promise((res) => requestAnimationFrame(res as any));
 }
 
 export async function loadFromEvent(ev: InputEvent) {
     if (!frame || !frame.isConnected) return;
-    await stopGame();
-
-    const el = ev.target as HTMLInputElement;
-    if (!el.files || !el.files.item(0)) return;
-    let text = '';
-    const buf = new Uint8Array(await el.files.item(0)!.arrayBuffer());
-    if (el.files.item(0)!.name.endsWith('.png')) {
-        let offset =
-            buf[buf.length - 1] |
-            (buf[buf.length - 2] << 8) |
-            (buf[buf.length - 3] << 16) |
-            (buf[buf.length - 4] << 24);
-
-        for (let i = offset; i < buf.length - 4; ++i) {
-            text += String.fromCharCode(buf[i]);
-        }
-    } else {
-        for (let i = 0; i < buf.length; ++i)
-            text += String.fromCharCode(buf[i]);
-    }
-    if (!text) return;
     try {
-        await (async function () {
-            await eval(text);
-        })();
-        if (!(globalThis as any).__registeredGame) throw new Error();
-        const game = (globalThis as any).__registeredGame as
-            | GameFile
-            | undefined;
-        if (!game) throw new Error();
-        delete (globalThis as any).__registeredGame;
-        console.log('Loading Game %s', game?.name || 'no name specified', game);
-        stopNextRender = false;
-        loadGame(game as GameFile);
-    } catch (e) {
-        console.error('Could not load file!\n╰─> %s', e);
+        await stopGame();
+
+        const el = ev.target as HTMLInputElement;
+        if (!el.files || !el.files.item(0)) return;
+        let text = '';
+        const buf = new Uint8Array(await el.files.item(0)!.arrayBuffer());
+        if (el.files.item(0)!.name.endsWith('.png')) {
+            let offset =
+                buf[buf.length - 1] |
+                (buf[buf.length - 2] << 8) |
+                (buf[buf.length - 3] << 16) |
+                (buf[buf.length - 4] << 24);
+
+            for (let i = offset; i < buf.length - 4; ++i) {
+                text += String.fromCharCode(buf[i]);
+            }
+        } else {
+            for (let i = 0; i < buf.length; ++i)
+                text += String.fromCharCode(buf[i]);
+        }
+        if (!text) return;
+        loadGameByContents(text);
+    } catch (e: any) {
+        stopGame();
+        console.error('Could not load file!\n╰─> %s', e?.stack || e);
+        if (ctx) runErrorAnimation(ctx);
     }
     delete (globalThis as any).__registeredGame;
 }
@@ -685,10 +725,11 @@ export async function loadGameByContents(contents: string | undefined | null) {
     if (!frame || !frame.isConnected) return;
     await stopGame();
 
-    if (!contents) return;
+    if (!contents || !ctx) return;
+    const p = runLoadAnimation(ctx);
     try {
         await (async function () {
-            await eval(contents);
+            return await eval(contents);
         })();
         if (!(globalThis as any).__registeredGame) throw new Error();
         const game = (globalThis as any).__registeredGame as
@@ -698,9 +739,12 @@ export async function loadGameByContents(contents: string | undefined | null) {
         delete (globalThis as any).__registeredGame;
         console.log('Loading Game %s', game?.name || 'no name specified', game);
         stopNextRender = false;
+        await Promise.allSettled([p]);
         loadGame(game as GameFile);
-    } catch (e) {
-        console.error('Could not load file!\n╰─> %s', e);
+    } catch (e: any) {
+        stopGame();
+        console.error('Could not load file!\n╰─> %s', e?.stack || e);
+        runErrorAnimation(ctx);
     }
     delete (globalThis as any).__registeredGame;
 }
@@ -722,3 +766,37 @@ export function startGame() {
 }
 (window as any).startGame = startGame;
 (window as any).loadGameByContents = loadGameByContents;
+
+export function defaultElGenProps(
+    frame: HTMLElement,
+    isFullscreen: boolean
+): Rainbow32ConsoleElementGeneratorOptions {
+    return {
+        canvas: {
+            aspectRatio: '200/180',
+            bgCol: 'var(--bg-col)',
+            height: isFullscreen ? '100%' : '50%',
+            zIndex: 10,
+        },
+        classes: {
+            canvas: '__rainbow32_canvas',
+            fileInput: '__rainbow32_gamefile',
+            buttons: {
+                down: '__rainbow32_button_down',
+                right: '__rainbow32_button_right',
+                up: '__rainbow32_button_up',
+                left: '__rainbow32_button_left',
+                i: '__rainbow32_button_i',
+                o: '__rainbow32_button_o',
+                u: '__rainbow32_button_u',
+                p: '__rainbow32_button_p',
+                start: '__rainbow32_button_start',
+                stop: '__rainbow32_button_stop',
+            },
+            button: '__rainbow32_button',
+            textButton: '__rainbow32_textbutton',
+        },
+        withControls: !isFullscreen,
+        frame,
+    };
+}
