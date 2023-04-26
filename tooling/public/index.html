@@ -1,0 +1,116 @@
+<body>
+    <div class="topbar ignore">
+        <div class="text-button">
+            File
+            <div>
+                <div class="text-button button-menu" data-menu="save">
+                    Save <kbd>Ctrl+S</kbd>
+                </div>
+                <div class="text-button button-menu" data-menu="load">
+                    Open <kbd>Ctrl+O</kbd>
+                    <input
+                        type="file"
+                        class="menu-load-file"
+                        accept=".rb32p"
+                        style="display: none"
+                    />
+                </div>
+                <div class="text-button button-menu" data-menu="new">
+                    New project <kbd>Alt+N</kbd>
+                </div>
+                <div class="text-button button-menu" data-menu="export">
+                    Export Cartridge <kbd>Ctrl+E</kbd>
+                </div>
+                <div class="text-button button-menu" data-menu="test">
+                    Test your game <kbd>Alt+T</kbd>
+                </div>
+                <div class="text-button button-menu" data-menu="compile">
+                    Download your game <kbd>Ctrl+Alt+T</kbd>
+                </div>
+            </div>
+        </div>
+        <div class="text-button row" data-tab="draw">Drawing Tool</div>
+        <div class="text-button row" data-tab="mask">Masking Tool</div>
+        <div class="text-button row" data-tab="keybinds">Keybinds</div>
+        <div class="text-button row" data-tab="music">Music editor</div>
+        <div class="text-button row" data-tab="editor">Code Editor</div>
+        <div class="text-button row" data-tab="data">Data Manager</div>
+    </div>
+    <div class="draw" data-name="draw"></div>
+    <div class="mask" data-name="mask"></div>
+    <div class="keybinds" data-name="keybinds">
+        <!-- ← ↑ → ↓  -->
+        <h2>Keybinds</h2>
+        <h4>Global</h4>
+        <p><kbd>Ctrl</kbd>+<kbd>S</kbd>: Save project</p>
+        <p><kbd>Ctrl</kbd>+<kbd>O</kbd>: Open project</p>
+        <p><kbd>Alt</kbd>+<kbd>N</kbd>: Create a new project</p>
+        <p>
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>→</kbd>: Move to the right tab
+        </p>
+        <p>
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>←</kbd>: Move to the left tab
+        </p>
+        <p>
+            <kbd>Doubleclick</kbd> on any window: Minimize or maximize the
+            window
+        </p>
+        <h4>Drawing Tool</h4>
+        <p>
+            <kbd>←</kbd>/<kbd>↑</kbd>/<kbd>→</kbd>/<kbd>↓</kbd>: Palette
+            selection move
+        </p>
+        <p>
+            <kbd>Alt</kbd>+<kbd>+</kbd>/<kbd>Alt</kbd>+<kbd>-</kbd>: Zoom in/out
+        </p>
+        <h4>Masking tool</h4>
+        <p>
+            <kbd>Alt</kbd>+<kbd>+</kbd>/<kbd>Alt</kbd>+<kbd>-</kbd>: Zoom in/out
+        </p>
+        <h4>Music Tool</h4>
+        <p><kbd>←</kbd>/<kbd>→</kbd>: Selection left/right</p>
+        <p><kbd>↑</kbd>/<kbd>↓</kbd>: Octave up/down</p>
+        <p>
+            <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>Alt</kbd>+<kbd>↓</kbd>: Selected
+            channel up/down
+        </p>
+        <p><kbd>+</kbd>/<kbd>-</kbd>: Increase/decrease the sounds length</p>
+        <p><kbd>Space</kbd>: Play/pause</p>
+        <p><kbd>Escape</kbd>: Clear current note</p>
+        <p>
+            <kbd>Key on the bottom of the keyboard</kbd>: Set current note to
+            key
+        </p>
+    </div>
+    <div class="music" data-name="music"></div>
+    <div class="data" style="min-width: 30vw" data-name="data"></div>
+    <div class="editor" data-name="editor">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs/loader.min.js"></script>
+        <script>
+            require.config({
+                paths: {
+                    vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs',
+                },
+            });
+            window.MonacoEnvironment = { getWorkerUrl: () => proxy };
+            let proxy = URL.createObjectURL(
+                new Blob(
+                    [
+                        `
+    self.MonacoEnvironment = {
+        baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min'
+    };
+    importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs/base/worker/workerMain.min.js');
+`,
+                    ],
+                    { type: 'text/javascript' }
+                )
+            );
+        </script>
+        <link
+            rel="stylesheet"
+            data-name="vs/editor/editor.main"
+            href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs/editor/editor.main.min.css"
+        />
+    </div>
+    <div class="notifications ignore"></div>

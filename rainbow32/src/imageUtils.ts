@@ -175,7 +175,7 @@ function getColor$(
     return { r, g, b, a };
 }
 
-function imgToImageData(img: Image, palette?: ColorPalette): ImageData | null {
+export function imgToImageData(img: Image): ImageData | null {
     if (img.width < 1 || img.height < 1) return null;
     const buf = new Uint8ClampedArray(img.width * img.height * 4);
 
@@ -188,7 +188,7 @@ function imgToImageData(img: Image, palette?: ColorPalette): ImageData | null {
                 buf[offset + 2] = 0;
                 buf[offset + 3] = 0;
             } else {
-                const color = getColor$(img.buf[h * img.width + w], palette);
+                const color = getColor(img.buf[h * img.width + w]);
                 const offset = (h * img.width + w) * 4;
                 buf[offset] = color.r;
                 buf[offset + 1] = color.g;

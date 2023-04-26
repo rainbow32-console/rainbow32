@@ -3,7 +3,6 @@ import {
     defaultPalette,
     getCurrentPalette,
     Image,
-    ImageMask,
     imgToPng,
     parsedPalette,
     parseImage,
@@ -11,10 +10,10 @@ import {
     square,
     stringifyImage,
     stringifyMask,
-} from '../../../rainbow32/src/imageUtils';
+} from '../../rainbow32/src/imageUtils';
 import { imageDataURI } from './img';
+import { compileTypescript } from './esbuild';
 import {
-    Audio,
     getSound,
     Instrument,
     loadMusic,
@@ -22,9 +21,10 @@ import {
     playSound,
     Sound,
     unloadMusic,
-} from '../../../rainbow32/src/audioUtils';
-import { download, sleep } from '../../../rainbow32/src/utils';
+} from '../../rainbow32/src/audioUtils';
+import { download, sleep } from '../../rainbow32/src/utils';
 import globals from './globals';
+import { compile } from './esbuild';
 import {
     getDebugString,
     HEIGHT,
@@ -34,9 +34,9 @@ import {
     setDbgDataCollection,
     unload,
     WIDTH,
-} from '../../../rainbow32/src/index';
+} from '../../rainbow32/src/index';
 import { _getCode } from './newCode';
-import _default from '../../../rainbow32/src/fonts/default';
+import _default from '../../rainbow32/src/fonts/default';
 import { b64DecodeUnicode, b64EncodeUnicode } from './b64';
 
 function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
@@ -207,18 +207,14 @@ let updateAudios = (newAudios: string[]) => {};
 let updateImages = (newImages: string[]) => {};
 let updateTexts = (newTexts: string[]) => {};
 let editorPostInit = () => {};
-let getImages: () => Record<string, string> = () => ({});
-let getMasks: () => Record<string, string> = getImages;
-let getAudios: () => Record<string, string> = getImages;
-let getTexts: () => Record<string, string> = getImages;
+export let getImages: () => Record<string, string> = () => ({});
+export let getMasks: () => Record<string, string> = getImages;
+export let getAudios: () => Record<string, string> = getImages;
+export let getTexts: () => Record<string, string> = getImages;
 let getCode: () => string = () => localStorage.getItem('code') || '';
 let compileAndPopup = () => {};
 let compileAndDownload = () => {};
 let addImage = (name?: string, image?: string) => {};
-
-type Requestify<T extends Record<string, any>> = {
-    [K in keyof T]: T[K] extends Uint8Array ? number[] : T[K];
-};
 
 function serialize(): string {
     try {
@@ -394,7 +390,11 @@ function closeX() {
     return svg;
 }
 
-function createNotification(title: string, description: string, color: string) {
+export function createNotification(
+    title: string,
+    description: string,
+    color: string
+) {
     const element = document.getElementsByClassName(
         'notifications'
     )[0] as HTMLElement;
@@ -2455,16 +2455,9 @@ window.addEventListener('load', () => {
     setupMasking();
     setupMusic();
 
-    if (location.protocol.startsWith('file')) {
-        document.querySelector('[data-name="data"]')?.remove();
-        document.querySelector('[data-name="editor"]')?.remove();
-        document.getElementsByClassName('topbar')[0]?.remove();
-        document.body.style.marginTop = '0';
-    } else {
-        setupDataManager();
-        setupEditor();
-        setupMenu();
-    }
+    setupDataManager();
+    setupEditor();
+    setupMenu();
     document.body
         .getElementsByClassName('keybinds')[0]
         ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));
@@ -2627,86 +2620,6 @@ function customWriteText(
     }
 }
 
-async function compile(code: string): Promise<string | void> {
-    const stringImgs = getImages();
-    const stringMasks = getMasks();
-    const stringAudios = getAudios();
-    const images: Record<string, Requestify<Image>> = {};
-    const masks: Record<string, Requestify<ImageMask>> = {};
-    const audios: Record<string, Requestify<Audio>> = {};
-
-    for (const k of Object.keys(stringImgs)) {
-        if (k.startsWith('__screenshot')) continue;
-        try {
-            const parsed = parseImage(stringImgs[k]);
-            images[k] = {
-                buf: [...parsed.buf.values()],
-                height: parsed.height,
-                width: parsed.width,
-            };
-        } catch {}
-    }
-    for (const k of Object.keys(stringMasks)) {
-        try {
-            const parsed = parseMask(stringMasks[k]);
-            masks[k] = {
-                buf: [...parsed.buf.values()],
-                height: parsed.height,
-                width: parsed.width,
-            };
-        } catch {}
-    }
-    for (const k of Object.keys(stringAudios)) {
-        try {
-            const parsed = parseAudio(stringAudios[k]);
-            audios[k] = {
-                channel1Instrument: parsed.channel1Instrument,
-                channel2Instrument: parsed.channel2Instrument,
-                channel3Instrument: parsed.channel3Instrument,
-                channel4Instrument: parsed.channel4Instrument,
-                length: parsed.length,
-                channel1: [...parsed.channel1.values()],
-                channel2: [...parsed.channel2.values()],
-                channel3: [...parsed.channel3.values()],
-                channel4: [...parsed.channel4.values()],
-            };
-        } catch {}
-    }
-
-    return await fetch(window.location.origin + '/api/build', {
-        method: 'post',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            code: '\n' + getCode(),
-            images,
-            masks,
-            audios,
-            texts: getTexts(),
-        }),
-    })
-        .then((res) =>
-            !res.ok
-                ? res.text().then((val) => ({ ok: false, val }))
-                : res.text().then((val) => ({ ok: true, val }))
-        )
-        .then(({ ok, val }) => {
-            if (!ok) {
-                console.error(val);
-                createNotification(
-                    'Error',
-                    'Failed to compile! Check the console (F12/Ctrl+Shift+I)',
-                    '#b91c1c'
-                );
-                return;
-            } else {
-                return val;
-            }
-        })
-        .catch(() => {});
-}
-
 async function codeToCartridge(image: string, name: string, author: string) {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -2755,3 +2668,5 @@ async function codeToCartridge(image: string, name: string, author: string) {
     if (!data) throw new Error('Failed to compile');
     return 'data:image/png;base64,' + btoa(data);
 }
+
+(window as any).compile = compileTypescript;

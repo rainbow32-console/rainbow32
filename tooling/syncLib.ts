@@ -10,3 +10,12 @@ writeFileSync(
     join(__dirname, 'client', 'src', 'globals.ts'),
     'export default ' + lib
 );
+writeFileSync(
+    join(__dirname, 'client', 'src', 'globalcode.ts'),
+    'export default ' +
+        JSON.stringify(
+            readFileSync(join(__dirname, '../library/index.ts'))
+                .toString()
+                .replaceAll('export ', '')
+        )
+);

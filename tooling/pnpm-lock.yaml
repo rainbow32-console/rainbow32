@@ -5,6 +5,7 @@ specifiers:
   '@types/express': ^4.17.17
   '@types/node': ^18.15.11
   body-parser: ^1.20.2
+  esbuild-wasm: ^0.17.18
   express: ^4.18.2
   library: ../library/dist
 
@@ -13,6 +14,7 @@ dependencies:
   '@types/express': 4.17.17
   '@types/node': 18.15.11
   body-parser: 1.20.2
+  esbuild-wasm: 0.17.18
   express: 4.18.2
   library: link:../library/dist
 
@@ -184,6 +186,12 @@ packages:
   /encodeurl/1.0.2:
     resolution: {integrity: sha512-TPJXq8JqFaVYm2CWmPvnP2Iyo4ZSM7/QKcSmuMLDObfpH5fi7RUGmd/rTDf+rut/saiDiQEeVTNgAmJEdAOx0w==}
     engines: {node: '>= 0.8'}
+    dev: false
+
+  /esbuild-wasm/0.17.18:
+    resolution: {integrity: sha512-h4m5zVa+KaDuRFIbH9dokMwovvkIjTQJS7/Ry+0Z1paVuS9aIkso2vdA2GmwH9GSvGX6w71WveJ3PfkoLuWaRw==}
+    engines: {node: '>=12'}
+    hasBin: true
     dev: false
 
   /escape-html/1.0.3:

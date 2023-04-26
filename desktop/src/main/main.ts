@@ -72,23 +72,26 @@ ipcMain.handle('unmount', (ev, device: string) => {
   if (id) unmount(id);
   if (mounted === id) mounted === null;
 });
-ipcMain.handle('get-cartridges', async () => {
+const cartridges: string[] = [];
+(async function () {
   if (!existsSync(join(homedir(), '.cartridges'))) return [];
-  const entries = await readdir(join(homedir(), '.cartridges'), {
-    withFileTypes: true,
-  });
-  const uris: string[] = [];
-  for (let i = 0; i < entries.length; ++i) {
-    if (entries[i].isFile() && entries[i].name.endsWith('.png'))
-      uris.push(
-        'data:image/png;base64,' +
-          (
-            await readFile(join(homedir(), '.cartridges', entries[i].name))
-          ).toString('base64')
-      );
+  const dirs: string[] = [join(homedir(), '.cartridges')];
+  while (dirs.length > 0) {
+    const dir = dirs.pop();
+    if (!dir) break;
+    try {
+      for (const e of await readdir(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) dirs.push(join(dir, e.name));
+        else if (e.isFile() && e.name.endsWith('.png')) {
+          readFile(join(dir, e.name))
+            .then((c) => c.toString('base64'))
+            .then((val) => cartridges.push('data:image/png;base64,' + val));
+        }
+      }
+    } catch {}
   }
-  return uris;
-});
+})();
+ipcMain.handle('get-cartridges', () => cartridges);
 ipcMain.handle('get-devices', () => devices.map((el) => el.name));
 
 ipcMain.handle('get-file-contents', (ev, device: string, path: string) =>
