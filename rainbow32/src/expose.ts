@@ -1,4 +1,5 @@
 import { ImageRenderer } from './components/imageRenderer';
+import { BoxCollider } from './components/BoxCollisions';
 import _default from './fonts/default';
 import default_monospace from './fonts/default_monospace';
 import legacy from './fonts/legacy';
@@ -14,10 +15,13 @@ import { download, isOnTimeout, timeout } from './utils';
 import {
     addCharacterMask,
     applyCharacterMap,
+    calculateBounds,
+    calculateWidth,
     clearCharacterMap,
     currentTextMasks,
     writeText,
 } from './text';
+import { addParticle, removeParticle, removeParticles } from './particleSystem';
 
 function expose(name: string, variable: any) {
     (globalThis as any)[name] = variable;
@@ -29,7 +33,7 @@ export function exposeToWorld() {
         default_monospace,
         legacy,
     };
-    
+
     expose('fonts', fonts);
     expose('imageUtils', imageUtils);
     expose(
@@ -60,4 +64,10 @@ export function exposeToWorld() {
     expose('isOnTimeout', isOnTimeout);
     expose('timeout', timeout);
     expose('audioUtils', audioUtils);
+    expose('calculateBounds', calculateBounds);
+    expose('calculateWidth', calculateWidth);
+    expose('addParticle', addParticle);
+    expose('removeParticle', removeParticle);
+    expose('removeParticles', removeParticles);
+    expose('BoxCollider', BoxCollider);
 }

@@ -19,7 +19,12 @@
                     </div>
                     <div class="text-button button-menu" data-menu="load">
                         Open <kbd>Ctrl+O</kbd>
-                        <input type="file" class="menu-load-file" accept=".rb32p">
+                        <input
+                            type="file"
+                            class="menu-load-file"
+                            accept=".rb32p"
+                            style="display: none"
+                        />
                     </div>
                     <div class="text-button button-menu" data-menu="new">
                         New project <kbd>Alt+N</kbd>
@@ -27,8 +32,20 @@
                     <div class="text-button button-menu" data-menu="export">
                         Export Cartridge <kbd>Ctrl+E</kbd>
                     </div>
+                    <div class="text-button button-menu" data-menu="test">
+                        Test your game <kbd>Alt+T</kbd>
+                    </div>
+                    <div class="text-button button-menu" data-menu="compile">
+                        Download your game <kbd>Ctrl+Alt+T</kbd>
+                    </div>
                 </div>
             </div>
+            <div class="text-button row" data-tab="draw">Drawing Tool</div>
+            <div class="text-button row" data-tab="mask">Masking Tool</div>
+            <div class="text-button row" data-tab="keybinds">Keybinds</div>
+            <div class="text-button row" data-tab="music">Music editor</div>
+            <div class="text-button row" data-tab="editor">Code Editor</div>
+            <div class="text-button row" data-tab="data">Data Manager</div>
         </div>
         <div class="draw" data-name="draw"></div>
         <div class="mask" data-name="mask"></div>
@@ -40,6 +57,14 @@
             <p><kbd>Ctrl</kbd>+<kbd>O</kbd>: Open project</p>
             <p><kbd>Alt</kbd>+<kbd>N</kbd>: Create a new project</p>
             <p>
+                <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>→</kbd>: Move to the right
+                tab
+            </p>
+            <p>
+                <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>←</kbd>: Move to the left
+                tab
+            </p>
+            <p>
                 <kbd>Doubleclick</kbd> on any window: Minimize or maximize the
                 window
             </p>
@@ -48,12 +73,24 @@
                 <kbd>←</kbd>/<kbd>↑</kbd>/<kbd>→</kbd>/<kbd>↓</kbd>: Palette
                 selection move
             </p>
+            <p>
+                <kbd>Alt</kbd>+<kbd>+</kbd>/<kbd>Alt</kbd>+<kbd>-</kbd>: Zoom
+                in/out
+            </p>
+            <h4>Masking tool</h4>
+            <p>
+                <kbd>Alt</kbd>+<kbd>+</kbd>/<kbd>Alt</kbd>+<kbd>-</kbd>: Zoom
+                in/out
+            </p>
             <h4>Music Tool</h4>
             <p><kbd>←</kbd>/<kbd>→</kbd>: Selection left/right</p>
             <p><kbd>↑</kbd>/<kbd>↓</kbd>: Octave up/down</p>
             <p>
                 <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>Alt</kbd>+<kbd>↓</kbd>:
                 Selected channel up/down
+            </p>
+            <p>
+                <kbd>+</kbd>/<kbd>-</kbd>: Increase/decrease the sounds length
             </p>
             <p><kbd>Space</kbd>: Play/pause</p>
             <p><kbd>Escape</kbd>: Clear current note</p>

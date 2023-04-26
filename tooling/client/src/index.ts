@@ -1,12 +1,13 @@
 import {
     applyImageMask,
     defaultPalette,
+    getCurrentPalette,
     Image,
     ImageMask,
-    imgToImageData,
+    imgToPng,
+    parsedPalette,
     parseImage,
     parseMask,
-    putImageData,
     square,
     stringifyImage,
     stringifyMask,
@@ -16,15 +17,87 @@ import {
     Audio,
     getSound,
     Instrument,
+    loadMusic,
     parseAudio,
     playSound,
     Sound,
+    unloadMusic,
 } from '../../../rainbow32/src/audioUtils';
 import { download, sleep } from '../../../rainbow32/src/utils';
 import globals from './globals';
-import { loadGameByContents, onLoad, unload } from '../../../rainbow32/src/index';
-import { getCode } from './newCode';
+import {
+    getDebugString,
+    HEIGHT,
+    loadGameByContents,
+    memory,
+    onLoad,
+    setDbgDataCollection,
+    unload,
+    WIDTH,
+} from '../../../rainbow32/src/index';
+import { _getCode } from './newCode';
 import _default from '../../../rainbow32/src/fonts/default';
+import { b64DecodeUnicode, b64EncodeUnicode } from './b64';
+
+function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
+    const palette = getCurrentPalette();
+    let col = palette[color];
+    if (!col)
+        throw new Error(
+            'The color has to be in the range of 0-31. Supplied ' + color
+        );
+
+    if (col.startsWith('#')) col = col.substring(1);
+    let r_str = col[0] + col[1];
+    let g_str = col[2] + col[3];
+    let b_str = col[4] + col[5];
+    let a_str = col[6] + col[7];
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let a = 0xff;
+    try {
+        const col = parseInt(r_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) r = col;
+    } catch {}
+    try {
+        const col = parseInt(g_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) g = col;
+    } catch {}
+    try {
+        const col = parseInt(b_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) b = col;
+    } catch {}
+    try {
+        const col = parseInt(a_str, 16);
+        if (!isNaN(col) && col > -1 && col < 256) a ||= col;
+    } catch {}
+    return { r, g, b, a };
+}
+function imgToImageData(img: Image): ImageData | null {
+    if (img.width < 1 || img.height < 1) return null;
+    const buf = new Uint8ClampedArray(img.width * img.height * 4);
+
+    for (let h = 0; h < img.height; ++h)
+        for (let w = 0; w < img.width; ++w) {
+            if (img.buf[h * img.width + w] === 0xff) {
+                const offset = (h * img.width + w) * 4;
+                buf[offset] = 0;
+                buf[offset + 1] = 0;
+                buf[offset + 2] = 0;
+                buf[offset + 3] = 0;
+            } else {
+                const color = getColor(img.buf[h * img.width + w]);
+                const offset = (h * img.width + w) * 4;
+                buf[offset] = color.r;
+                buf[offset + 1] = color.g;
+                buf[offset + 2] = color.b;
+                buf[offset + 3] = color.a;
+            }
+        }
+
+    return new ImageData(buf, img.width, img.height);
+}
 
 function text(text: string): Text {
     return document.createTextNode(text);
@@ -121,24 +194,27 @@ function textButton(
     );
 }
 
-let lastSelected:
-    | ''
-    | 'draw'
-    | 'mask'
-    | 'music'
-    | 'keybinds'
-    | 'editor'
-    | 'data' = '';
+type tab = 'draw' | 'mask' | 'music' | 'keybinds' | 'editor' | 'data';
+
+let lastSelected: 'compiled' | tab = 'draw';
+
+const tabs: tab[] = ['draw', 'mask', 'keybinds', 'music', 'editor', 'data'];
 
 declare var require: any;
 declare var monaco: any;
 let updateMasks = (newMasks: string[]) => {};
 let updateAudios = (newAudios: string[]) => {};
 let updateImages = (newImages: string[]) => {};
+let updateTexts = (newTexts: string[]) => {};
 let editorPostInit = () => {};
 let getImages: () => Record<string, string> = () => ({});
 let getMasks: () => Record<string, string> = getImages;
 let getAudios: () => Record<string, string> = getImages;
+let getTexts: () => Record<string, string> = getImages;
+let getCode: () => string = () => localStorage.getItem('code') || '';
+let compileAndPopup = () => {};
+let compileAndDownload = () => {};
+let addImage = (name?: string, image?: string) => {};
 
 type Requestify<T extends Record<string, any>> = {
     [K in keyof T]: T[K] extends Uint8Array ? number[] : T[K];
@@ -153,6 +229,7 @@ function serialize(): string {
             masks: localStorage.getItem('masks') || '{}',
             author: localStorage.getItem('author') || '',
             name: localStorage.getItem('name') || '',
+            texts: localStorage.getItem('texts') || '',
         });
     } catch (e) {
         createNotification(
@@ -172,6 +249,7 @@ function deserialize(data: string) {
         localStorage.setItem('audios', parsed.audios || '{}');
         localStorage.setItem('images', parsed.images || '{}');
         localStorage.setItem('masks', parsed.masks || '{}');
+        localStorage.setItem('texts', parsed.texts || '{}');
     } catch (e) {
         createNotification('Error', 'Error loading your project!', '#b91c1c');
         throw e;
@@ -197,7 +275,8 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
         save(ev) {
             ev.preventDefault();
             download(
-                'data:application/octet-stream;base64,' + btoa(serialize()),
+                'data:application/octet-stream;base64,' +
+                    btoa(b64EncodeUnicode(serialize())),
                 escapeName(localStorage.getItem('name') || 'unnamed') + '.rb32p'
             );
         },
@@ -223,13 +302,19 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
             const author = prompt('Author');
             const color = prompt('Background', '#ffffff');
             if (!color) return;
-            localStorage.setItem('code', getCode(color, name));
+            localStorage.setItem('code', _getCode(color, name));
             localStorage.setItem('audios', '{}');
             localStorage.setItem(
                 'images',
                 '{"_cartridge": "84:87:' + '8'.repeat(7308) + '"}'
             );
             localStorage.setItem('masks', '{}');
+            localStorage.setItem(
+                'texts',
+                `{"_name": ${JSON.stringify(name)}, "_author": ${JSON.stringify(
+                    author
+                )}}`
+            );
             localStorage.setItem('name', name);
             if (!author) localStorage.removeItem('author');
             else localStorage.setItem('author', author);
@@ -268,6 +353,12 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
             } catch (e) {
                 alert('' + e);
             }
+        },
+        test() {
+            compileAndPopup();
+        },
+        compile() {
+            compileAndDownload();
         },
     };
 
@@ -348,9 +439,13 @@ function createNotification(title: string, description: string, color: string) {
     xBtn.addEventListener('click', () => notification.remove());
 }
 async function openImagePopup(url: string) {
+    if (lastSelected === 'compiled') return;
+    const _selected = lastSelected;
+    lastSelected = 'compiled';
     const popup = document.createElement('div');
     popup.classList.add('game-popup');
-    popup.style.zIndex = '5';
+    popup.classList.add('ignore');
+    popup.style.zIndex = '5000';
     popup.style.position = 'absolute';
     popup.style.width = '100%';
     popup.style.height = '100%';
@@ -387,7 +482,7 @@ async function openImagePopup(url: string) {
     });
 
     async function close() {
-        await unload();
+        lastSelected = _selected;
         document.body.style.overflow = 'visible';
         popup.remove();
         svg.removeEventListener('click', close);
@@ -410,10 +505,14 @@ async function openImagePopup(url: string) {
     await awaitLoad(img as HTMLImageElement);
     return popup;
 }
-function openPopup(code: string) {
+async function openPopup(code: string) {
+    if (lastSelected === 'compiled') return;
+    const _selected = lastSelected;
+    lastSelected = 'compiled';
     const popup = document.createElement('div');
     popup.classList.add('game-popup');
-    popup.style.zIndex = '5';
+    popup.classList.add('ignore');
+    popup.style.zIndex = '5000';
     popup.style.position = 'absolute';
     popup.style.width = '100%';
     popup.style.height = '100%';
@@ -434,6 +533,7 @@ function openPopup(code: string) {
     svg.style.top = '0px';
     svg.style.cursor = 'pointer';
 
+    const debugDataPre = h('pre', {}, []);
     const keybindsDiv = h('div', { class: 'popup-keybinds' }, [
         h('p', {}, [kbd('w'), text('/'), kbd('↑'), text(': Trigger up key')]),
         h('p', {}, [kbd('a'), text('/'), kbd('←'), text(': Trigger left key')]),
@@ -448,6 +548,9 @@ function openPopup(code: string) {
         h('p', {}, [kbd('i'), text(': Trigger action 2 key')]),
         h('p', {}, [kbd('o'), text(': Trigger action 3 key')]),
         h('p', {}, [kbd('p'), text(': Trigger action 4 key')]),
+        h('br', {}, []),
+        h('h3', {}, [text('Debug Data')]),
+        debugDataPre,
     ]);
     popup.append(svg);
 
@@ -457,15 +560,30 @@ function openPopup(code: string) {
     });
 
     async function close() {
+        lastSelected = _selected;
         await unload();
         document.body.style.overflow = 'visible';
         popup.remove();
         svg.removeEventListener('click', close);
         window.removeEventListener('keydown', keydown);
+        stopRender = true;
     }
     svg.addEventListener('click', close);
 
     document.body.append(popup);
+
+    let stopRender = false;
+
+    let previous = Date.now();
+    function render(dt: number) {
+        if (stopRender) return;
+        debugDataPre.textContent = getDebugString();
+        debugDataPre.textContent +=
+            'FPS: ' + (1000 / (dt - previous)).toFixed(0);
+        requestAnimationFrame(render);
+        previous = dt;
+    }
+    requestAnimationFrame(render);
 
     function keydown(ev: KeyboardEvent) {
         if (ev.key === 'Escape' || ev.key === 'Enter') {
@@ -476,28 +594,25 @@ function openPopup(code: string) {
     }
     window.addEventListener('keydown', keydown);
 
-    onLoad(popup, false);
+    await onLoad(popup, false);
+    setDbgDataCollection(true);
     popup.append(keybindsDiv);
     loadGameByContents(code);
     popup.getElementsByTagName('input').item(0)?.remove();
 
     return popup;
 }
-
-const minimized: Record<string, boolean> = {};
 function setupDrawing() {
     const drawElement = document.getElementsByClassName('draw')[0];
     if (!drawElement || !(drawElement instanceof HTMLDivElement)) return;
-    drawElement.addEventListener(
-        'mousedown',
-        () => !minimized.draw && (lastSelected = 'draw')
-    );
+    drawElement.addEventListener('mousedown', () => (lastSelected = 'draw'));
 
     const palette = makePalette(true, 0);
     drawElement.append(h('h2', {}, [text('Drawing tool')]), palette);
     let selected = 0;
     let width = 16;
     let height = 16;
+    let scaleFactor = 1;
     palette.addEventListener('click', (ev) => {
         if (
             !ev.target ||
@@ -515,6 +630,14 @@ function setupDrawing() {
     window.addEventListener('keydown', (ev) => {
         if (lastSelected !== 'draw' || ev.target instanceof HTMLTextAreaElement)
             return;
+        if ((ev.key === '+' || ev.key === '-') && ev.altKey) {
+            ev.preventDefault();
+            if (ev.key === '+') scaleFactor += 0.25;
+            else if (ev.key === '-' && scaleFactor > 1) scaleFactor -= 0.25;
+            canvas.setAttribute('style', '--scale-factor: ' + scaleFactor);
+
+            return;
+        }
         if (!ev.key.startsWith('Arrow')) return;
         ev.preventDefault();
         let delta =
@@ -583,6 +706,7 @@ function setupDrawing() {
             width: width.toString(),
             height: height.toString(),
             class: 'paintCanvas',
+            style: '--scale-factor: ' + scaleFactor,
         },
         []
     ) as HTMLCanvasElement;
@@ -590,18 +714,42 @@ function setupDrawing() {
     const dataEl = h(
         'textarea',
         {
-            style: 'font-family: monospace;',
+            style: 'font-family: var(--font);',
             class: 'img-data-input',
         },
         []
     ) as HTMLTextAreaElement;
     const loadBtn = textButton({ class: 'img-load-btn' }, [text('Load')]);
     const clearBtn = textButton({ class: 'img-clear-btn' }, [text('Clear')]);
+    const pngBtn = textButton({ class: 'img-download-btn' }, [
+        text('Save as PNG'),
+    ]);
+    const fromInput = h(
+        'input',
+        {
+            type: 'file',
+            accept: '.png',
+            id: 'img-upload',
+            name: 'img-upload',
+            style: 'display:none',
+        },
+        []
+    ) as HTMLInputElement;
     drawElement.append(
         canvas,
         h('div', { class: 'row', style: 'align-items: flex-end' }, [
             dataEl,
-            h('div', { class: 'row' }, [loadBtn, clearBtn]),
+            h('div', { class: 'row' }, [
+                loadBtn,
+                clearBtn,
+                pngBtn,
+                fromInput,
+                h(
+                    'label',
+                    { class: 'img-upload-btn text-button', for: 'img-upload' },
+                    [text('Load from png')]
+                ),
+            ]),
         ])
     );
     loadBtn.addEventListener('click', () => {
@@ -614,6 +762,58 @@ function setupDrawing() {
         for (let i = 0; i < img.buf.length; ++i)
             if (img.buf[i] !== 0xff) data[i] = img.buf[i];
         updateCanvas();
+    });
+    fromInput.addEventListener('change', async () => {
+        const f = fromInput.files?.item(0);
+        if (!f || !f.name.endsWith('.png')) return;
+        const src = URL.createObjectURL(f);
+        const img = h('img', { src }, []) as HTMLImageElement;
+        document.body.append(img);
+        await awaitLoad(img);
+        img.remove();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        ).data;
+        data = [];
+        width = canvas.width;
+        height = canvas.height;
+        widthIn.value = width.toString();
+        heightIn.value = height.toString();
+        for (let i = 0; i < imgData.length >> 2; ++i) {
+            if (imgData[(i << 2) + 3] < 127) continue;
+            const idx = parsedPalette.findIndex(
+                (v) =>
+                    v.r === imgData[i << 2] &&
+                    v.g === imgData[(i << 2) + 1] &&
+                    v.b === imgData[(i << 2) + 2]
+            );
+            if (idx < 0) continue;
+            data[i] = idx;
+        }
+        updateCanvas();
+    });
+    pngBtn.addEventListener('click', () => {
+        const buf = new Uint8Array(width * height);
+        for (let i = 0; i < buf.length; ++i)
+            buf[i] = data[i] !== undefined ? data[i] : 0xff;
+
+        download(
+            imgToPng({
+                width,
+                height,
+                buf,
+            }),
+            'image.png'
+        );
     });
     clearBtn.addEventListener('click', () => {
         width = 16;
@@ -690,13 +890,20 @@ function setupDrawing() {
 function setupMasking() {
     const maskingDiv = document.getElementsByClassName('mask')[0];
     if (!maskingDiv) return;
-    maskingDiv.addEventListener(
-        'mousedown',
-        () => !minimized.mask && (lastSelected = 'mask')
-    );
+    maskingDiv.addEventListener('mousedown', () => (lastSelected = 'mask'));
 
     let width = 16;
     let height = 16;
+    let scaleFactor = 1;
+    window.addEventListener('keydown', (ev) => {
+        if (lastSelected !== 'mask') return;
+        if ((ev.key === '+' || ev.key === '-') && ev.altKey) {
+            ev.preventDefault();
+            if (ev.key === '+') scaleFactor += 0.25;
+            else if (ev.key === '-' && scaleFactor > 1) scaleFactor -= 0.25;
+            canvas.setAttribute('style', '--scale-factor: ' + scaleFactor);
+        }
+    });
 
     const widthIn = h(
         'input',
@@ -748,6 +955,7 @@ function setupMasking() {
             width: width.toString(),
             height: height.toString(),
             class: 'paintCanvas',
+            style: '--scale-factor: ' + scaleFactor,
         },
         []
     ) as HTMLCanvasElement;
@@ -755,7 +963,7 @@ function setupMasking() {
     const dataEl = h(
         'textarea',
         {
-            style: 'font-family: monospace;',
+            style: 'font-family: var(--font);',
             class: 'mask-data-input',
         },
         []
@@ -763,7 +971,7 @@ function setupMasking() {
     const dataEl1 = h(
         'textarea',
         {
-            style: 'font-family: monospace;',
+            style: 'font-family: var(--font);',
             cols: '17',
             rows: '17',
         },
@@ -885,10 +1093,7 @@ function setupMasking() {
 function setupMusic() {
     const element = document.getElementsByClassName('music')[0];
     if (!element) return;
-    element.addEventListener(
-        'mousedown',
-        () => !minimized.music && (lastSelected = 'music')
-    );
+    element.addEventListener('mousedown', () => (lastSelected = 'music'));
 
     element.append(h('h2', {}, [text('Music editor')]));
     const lengthInput = h(
@@ -919,8 +1124,11 @@ function setupMusic() {
     let length = 16;
 
     lengthInput.addEventListener('change', () => {
-        let newVal = Number(lengthInput.value);
-        if (!isFinite(newVal) || isNaN(newVal)) return;
+        let newVal = Math.floor(Number(lengthInput.value));
+        if (isNaN(newVal)) newVal = 16;
+        else if (newVal < 1) newVal = 1;
+        else if (newVal > 255) newVal = 255;
+        lengthInput.value = newVal.toString();
         if (newVal < 0) {
             lengthInput.value = '0';
             newVal = 0;
@@ -946,7 +1154,7 @@ function setupMusic() {
     const dataOutEl = h(
         'textarea',
         {
-            style: 'margin:0 .5rem;flex-grow:1;height:5rem;font-family: monospace;',
+            style: 'margin:0 .5rem;flex-grow:1;height:5rem;font-family: var(--font);',
             class: 'audio-data-input',
         },
         []
@@ -1117,7 +1325,7 @@ function setupMusic() {
             divs[3].append(node4);
         }
         updateDataOut();
-        return h('div', {}, divs);
+        return h('div', { style: 'width: fit-content' }, divs);
     }
 
     let currentlyRenderedDiv = render();
@@ -1301,15 +1509,17 @@ function setupMusic() {
             }`;
 
         if (currentNote !== null && currentOctave !== null)
-            playSound(
-                {
-                    sound: currentNote,
-                    octave: currentOctave,
-                    halfToneStepUp: sharp,
-                },
-                instruments[channel - 1],
-                0.5,
-                0.5
+            loadMusic().then(() =>
+                playSound(
+                    {
+                        sound: currentNote!,
+                        octave: currentOctave!,
+                        halfToneStepUp: sharp,
+                    },
+                    instruments[channel - 1],
+                    0.5,
+                    0.5
+                ).then(unloadMusic)
             );
 
         octave.textContent = currentOctave?.toString() || '';
@@ -1317,23 +1527,27 @@ function setupMusic() {
         else octaveDown.removeAttribute('disabled');
         if (currentOctave === 8) octaveUp.setAttribute('disabled', '');
         else octaveUp.removeAttribute('disabled');
+        instrumentSelector.value = instruments[channel - 1];
         updateDataOut();
     }
 
     instrumentSelector.addEventListener('change', () => {
-        playSound(
-            {
-                halfToneStepUp: false,
-                octave: 4,
-                sound: 'c',
-            },
-            (instrumentSelector.value || 'square-wave') as 'square-wave',
-            0.5,
-            0.25
+        loadMusic().then(() =>
+            playSound(
+                {
+                    halfToneStepUp: false,
+                    octave: 4,
+                    sound: 'c',
+                },
+                (instrumentSelector.value || 'square-wave') as 'square-wave',
+                0.5,
+                0.25
+            ).then(unloadMusic)
         );
 
         instruments[channel - 1] = (instrumentSelector.value ||
             'square-wave') as 'square-wave';
+        updateNote();
     });
 
     clearBtnCur.addEventListener('click', () => {
@@ -1537,6 +1751,25 @@ function setupMusic() {
             sharp = false;
             updateNote();
             ev.preventDefault();
+        } else if (ev.key === '+' || ev.key === '-') {
+            let newVal = Math.floor(Number(lengthInput.value));
+            if (isNaN(newVal)) newVal = 16;
+            else if (newVal < 1) newVal = 1;
+            else if (newVal > 255) newVal = 255;
+            if (ev.key === '-' && newVal > 1) newVal--;
+            else if (ev.key === '+' && newVal < 255) newVal++;
+            lengthInput.value = newVal.toString();
+
+            if (newVal < 0) {
+                lengthInput.value = '0';
+                newVal = 0;
+            }
+            if (newVal > 255) {
+                lengthInput.value = '255';
+                newVal = 255;
+            }
+            length = newVal;
+            rerender();
         }
     });
 
@@ -1627,17 +1860,14 @@ function setupMusic() {
 function setupEditor() {
     const element = document.getElementsByClassName('editor')[0];
     if (!element) return;
-    element.addEventListener(
-        'mousedown',
-        () => !minimized.editor && (lastSelected = 'editor')
-    );
+    element.addEventListener('mousedown', () => (lastSelected = 'editor'));
     const compileBtn = textButton({}, [text('Compile')]);
     const downloadBtn = textButton({}, [text('Download')]);
     const saveBtn = textButton({}, [text('Save')]);
     const saveText = h('h4', { style: 'margin-right: .25rem;color: #a3a3a3' }, [
         text('Changes Saved'),
     ]);
-    const loadingText = h('h2', { style: 'font-family: sans-serif' }, [
+    const loadingText = h('h2', { style: 'font-family: var(--font)' }, [
         text('Loading...'),
     ]);
     const editor = h('div', { class: 'meditor' }, [loadingText]);
@@ -1656,178 +1886,35 @@ function setupEditor() {
     (require as any)(['vs/editor/editor.main'], function () {
         try {
             let compiling = false;
-            const compileBtnEvent = async () => {
+            compileAndPopup = async () => {
                 if (compiling) return;
                 compiling = true;
                 compileBtn.setAttribute('disabled', '');
                 downloadBtn.setAttribute('disabled', '');
-                const stringImgs = getImages();
-                const stringMasks = getMasks();
-                const stringAudios = getAudios();
-                const images: Record<string, Requestify<Image>> = {};
-                const masks: Record<string, Requestify<ImageMask>> = {};
-                const audios: Record<string, Requestify<Audio>> = {};
-
-                for (const k of Object.keys(stringImgs)) {
-                    try {
-                        const parsed = parseImage(stringImgs[k]);
-                        images[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringMasks)) {
-                    try {
-                        const parsed = parseMask(stringMasks[k]);
-                        masks[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringAudios)) {
-                    try {
-                        const parsed = parseAudio(stringAudios[k]);
-                        audios[k] = {
-                            channel1Instrument: parsed.channel1Instrument,
-                            channel2Instrument: parsed.channel2Instrument,
-                            channel3Instrument: parsed.channel3Instrument,
-                            channel4Instrument: parsed.channel4Instrument,
-                            length: parsed.length,
-                            channel1: [...parsed.channel1.values()],
-                            channel2: [...parsed.channel2.values()],
-                            channel3: [...parsed.channel3.values()],
-                            channel4: [...parsed.channel4.values()],
-                        };
-                    } catch {}
-                }
-
-                await fetch(window.location.origin + '/api/build', {
-                    method: 'post',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        code: '\n' + monacoEditor.getValue(),
-                        images,
-                        masks,
-                        audios,
-                    }),
-                })
-                    .then((res) =>
-                        !res.ok
-                            ? res.text().then((val) => ({ ok: false, val }))
-                            : res.text().then((val) => ({ ok: true, val }))
-                    )
-                    .then(({ ok, val }) => {
-                        if (!ok) {
-                            console.error(val);
-                            createNotification(
-                                'Error',
-                                'Failed to compile! Check the console (F12/Ctrl+Shift+I)',
-                                '#b91c1c'
-                            );
-                            return;
-                        } else {
-                            lastSelected = '';
-                            openPopup(val);
-                        }
-                    })
-                    .catch(() => {});
+                await compile(getCode()).then((code) =>
+                    code ? openPopup(code) : null
+                );
 
                 compileBtn.removeAttribute('disabled');
                 downloadBtn.removeAttribute('disabled');
                 compiling = false;
             };
-            compileBtn.addEventListener('click', compileBtnEvent);
-            const downloadBtnEvent = async () => {
+            compileBtn.addEventListener('click', compileAndPopup);
+            compileAndDownload = async () => {
                 if (compiling) return;
                 compiling = true;
                 compileBtn.setAttribute('disabled', '');
                 downloadBtn.setAttribute('disabled', '');
-                const stringImgs = getImages();
-                const stringMasks = getMasks();
-                const stringAudios = getAudios();
-                const images: Record<string, Requestify<Image>> = {};
-                const masks: Record<string, Requestify<ImageMask>> = {};
-                const audios: Record<string, Requestify<Audio>> = {};
-
-                for (const k of Object.keys(stringImgs)) {
-                    try {
-                        const parsed = parseImage(stringImgs[k]);
-                        images[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringMasks)) {
-                    try {
-                        const parsed = parseMask(stringMasks[k]);
-                        masks[k] = {
-                            buf: [...parsed.buf.values()],
-                            height: parsed.height,
-                            width: parsed.width,
-                        };
-                    } catch {}
-                }
-                for (const k of Object.keys(stringAudios)) {
-                    try {
-                        const parsed = parseAudio(stringAudios[k]);
-                        audios[k] = {
-                            channel1Instrument: parsed.channel1Instrument,
-                            channel2Instrument: parsed.channel2Instrument,
-                            channel3Instrument: parsed.channel3Instrument,
-                            channel4Instrument: parsed.channel4Instrument,
-                            length: parsed.length,
-                            channel1: [...parsed.channel1.values()],
-                            channel2: [...parsed.channel2.values()],
-                            channel3: [...parsed.channel3.values()],
-                            channel4: [...parsed.channel4.values()],
-                        };
-                    } catch {}
-                }
-
-                await fetch(window.location.origin + '/api/build', {
-                    method: 'post',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        code: '\n' + monacoEditor.getValue(),
-                        images,
-                        masks,
-                        audios,
-                    }),
-                })
-                    .then((res) =>
-                        !res.ok
-                            ? res.text().then((val) => ({ ok: false, val }))
-                            : res.text().then((val) => ({ ok: true, val }))
-                    )
-                    .then(({ ok, val }) => {
-                        if (!ok) {
-                            console.error(val);
-                            alert('Failed to compile! Check console!');
-                            return;
-                        } else {
-                            download(
-                                'data:javascript;base64,' + btoa(val),
-                                'game.js'
-                            );
-                        }
-                    })
-                    .catch(() => {});
+                await compile(getCode()).then((val) => {
+                    if (!val) return;
+                    download('data:javascript;base64,' + btoa(val), 'game.js');
+                });
 
                 compileBtn.removeAttribute('disabled');
                 downloadBtn.removeAttribute('disabled');
                 compiling = false;
             };
-            downloadBtn.addEventListener('click', downloadBtnEvent);
+            downloadBtn.addEventListener('click', compileAndDownload);
 
             const monacoEditor = monaco.editor.create(editor, {
                 language: 'typescript',
@@ -1835,6 +1922,7 @@ function setupEditor() {
                 theme: 'vs-dark',
                 value: localStorage.getItem('code') || '',
             });
+            getCode = () => monacoEditor.getValue();
             let timeoutId = 0;
             function queueSave() {
                 saveText.textContent = 'Unsaved changes';
@@ -1861,12 +1949,12 @@ function setupEditor() {
             });
             monacoEditor.addAction({
                 id: 'download',
-                run: downloadBtnEvent,
+                run: compileAndDownload,
                 label: 'Download Compiled Game',
             });
             monacoEditor.addAction({
                 id: 'compile',
-                run: compileBtnEvent,
+                run: compileAndPopup,
                 label: 'Compile Code',
             });
 
@@ -1884,6 +1972,11 @@ function setupEditor() {
                 monaco.languages.typescript.typescriptDefaults.addExtraLib(
                     'type ValidImagePath = never',
                     'defaults-images.d.ts'
+                ).dispose;
+            let disposeTexts =
+                monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                    'type ValidStringPath = never',
+                    'defaults-strings.d.ts'
                 ).dispose;
             updateMasks = function (masks) {
                 disposeMasks();
@@ -1919,9 +2012,25 @@ function setupEditor() {
                             (images.length < 1
                                 ? 'never'
                                 : images
+                                      .filter(
+                                          (el) => !el.startsWith('__screenshot')
+                                      )
                                       .map((el) => JSON.stringify(el))
                                       .join('|')),
                         'defaults-images.d.ts'
+                    ).dispose;
+            };
+            updateTexts = function (texts) {
+                disposeTexts();
+                disposeTexts =
+                    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                        'type ValidStringPath = ' +
+                            (texts.length < 1
+                                ? 'never'
+                                : texts
+                                      .map((el) => JSON.stringify(el))
+                                      .join('|')),
+                        'defaults-strings.d.ts'
                     ).dispose;
             };
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
@@ -1929,7 +2038,7 @@ function setupEditor() {
                 'globals.d.ts'
             );
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                'declare function getImage(path: ValidImagePath): Image;\ndeclare function getMask(path: ValidMaskPath): ImageMask;\ndeclare function getAudios(path: ValidAudioPath): Audio;',
+                'declare function getImage(path: ValidImagePath): Image;\ndeclare function getMask(path: ValidMaskPath): ImageMask;\ndeclare function getAudio(path: ValidAudioPath): Audio;\ndeclare function getString(path: ValidStringPath): string;',
                 'utils.d.ts'
             );
             editorPostInit();
@@ -1951,23 +2060,23 @@ function setupEditor() {
 function setupDataManager() {
     const element = document.getElementsByClassName('data')[0];
     if (!element) return;
-    element.addEventListener(
-        'mousedown',
-        () => !minimized.data && (lastSelected = 'data')
-    );
+    element.addEventListener('mousedown', () => (lastSelected = 'data'));
 
     let images: Record<string, string> = {};
     let masks: Record<string, string> = {};
     let audios: Record<string, string> = {};
+    let texts: Record<string, string> = {};
 
     getImages = () => images;
     getMasks = () => masks;
     getAudios = () => audios;
+    getTexts = () => texts;
 
     editorPostInit = () => {
         updateMasks(Object.keys(masks));
         updateImages(Object.keys(images));
         updateAudios(Object.keys(audios));
+        updateTexts(Object.keys(texts));
     };
 
     try {
@@ -1985,14 +2094,21 @@ function setupDataManager() {
         if (!n || typeof n !== 'object') throw '';
         audios = n;
     } catch {}
+    try {
+        const n = JSON.parse(localStorage.getItem('texts') || '');
+        if (!n || typeof n !== 'object') throw '';
+        texts = n;
+    } catch {}
 
     function sync() {
         localStorage.setItem('images', JSON.stringify(images));
         localStorage.setItem('masks', JSON.stringify(masks));
         localStorage.setItem('audios', JSON.stringify(audios));
+        localStorage.setItem('texts', JSON.stringify(texts));
         updateMasks(Object.keys(masks));
         updateImages(Object.keys(images));
         updateAudios(Object.keys(audios));
+        updateTexts(Object.keys(texts));
     }
 
     const addImageBtn = textButton({ style: 'margin-left: auto' }, [
@@ -2019,7 +2135,7 @@ function setupDataManager() {
     if (!idataEl) return alert('No img data element found!');
     if (!iloadBtn) return alert('No img load btn found!');
 
-    function generateImageBtn(name?: string, data?: string) {
+    addImage = function generateImageBtn(name?: string, data?: string) {
         if (!name) name = prompt('Name (at least 2 character):') || '';
         if (!name || name?.length < 2)
             return alert(
@@ -2065,11 +2181,11 @@ function setupDataManager() {
 
         imagesElement.append(el);
         return el;
-    }
+    };
 
-    for (const [k, v] of Object.entries(images)) generateImageBtn(k, v);
+    for (const [k, v] of Object.entries(images)) addImage(k, v);
 
-    addImageBtn.addEventListener('click', () => generateImageBtn());
+    addImageBtn.addEventListener('click', () => addImage());
 
     const addMaskBtn = textButton({ style: 'margin-left: auto' }, [
         text('Add'),
@@ -2149,15 +2265,15 @@ function setupDataManager() {
     const addAudioBtn = textButton({ style: 'margin-left: auto' }, [
         text('Add'),
     ]);
+    const audioElement = h('div', {}, []);
     element.append(
         h('div', { class: 'line', style: 'margin-top: 7px' }, []),
         h('div', { class: 'row' }, [
             h('h3', { style: 'margin-top: 7px;' }, [text('Audio')]),
             addAudioBtn,
-        ])
+        ]),
+        audioElement
     );
-    const audioElement = h('div', {}, []);
-    element.append(audioElement);
 
     const adataEl = document.getElementsByClassName(
         'audio-data-input'
@@ -2205,7 +2321,7 @@ function setupDataManager() {
         });
 
         removeBtn.addEventListener('click', () => {
-            if (confirm('Do you want to overwrite ' + name)) {
+            if (confirm('Do you want to remove ' + name)) {
                 el.remove();
                 delete audios[name!];
                 sync();
@@ -2219,6 +2335,69 @@ function setupDataManager() {
     for (const [k, v] of Object.entries(audios)) generateAudioBtn(k, v);
 
     addAudioBtn.addEventListener('click', () => generateAudioBtn());
+
+    const addTextBtn = textButton({ style: 'margin-left: auto' }, [
+        text('Add'),
+    ]);
+    const textElement = h('div', {}, []);
+    element.append(
+        h('div', { class: 'line', style: 'margin-top: 7px' }, []),
+        h('div', { class: 'row' }, [
+            h('h3', { style: 'margin-top: 3px' }, [text('Strings')]),
+            addTextBtn,
+        ]),
+        textElement
+    );
+
+    function generateTextBtn(name?: string, data?: string) {
+        if (!name) name = prompt('Name (at least 2 character):') || '';
+        data ||= prompt('Data') || '';
+        if (!data || !name) return;
+        texts[name] = data;
+        sync();
+        const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
+            text('Overwrite'),
+        ]);
+        const peekBtn = textButton({}, [text('Peek')]);
+        const removeBtn = textButton({}, [text('Remove')]);
+        const el = h('div', { class: 'row' }, [
+            h('h4', {}, [text(name)]),
+            overwriteBtn,
+            removeBtn,
+            peekBtn,
+        ]);
+
+        overwriteBtn.addEventListener('click', () => {
+            const data = prompt('New Data', texts[name!]);
+            if (data === '') {
+                if (confirm('Do you want to remove ' + name)) {
+                    el.remove();
+                    delete texts[name!];
+                    sync();
+                }
+                return;
+            }
+            if (!data) return;
+            texts[name!] = data;
+            sync();
+        });
+
+        removeBtn.addEventListener('click', () => {
+            if (confirm('Do you want to remove ' + name)) {
+                el.remove();
+                delete texts[name!];
+                sync();
+            }
+        });
+
+        peekBtn.addEventListener('click', () => alert(texts[name!]));
+
+        textElement.append(el);
+        return el;
+    }
+
+    for (const [k, v] of Object.entries(texts)) generateTextBtn(k, v);
+    addTextBtn.addEventListener('click', () => generateTextBtn());
 }
 function setupMenu() {
     const topbar = document.getElementsByClassName('topbar')[0] as
@@ -2228,10 +2407,15 @@ function setupMenu() {
     topbar.addEventListener('click', (ev) => {
         if (
             !(ev.target instanceof HTMLDivElement) ||
-            !ev.target.classList.contains('button-menu') ||
-            !ev.target.hasAttribute('data-menu')
+            (!ev.target.classList.contains('button-menu') &&
+                !ev.target.hasAttribute('data-menu') &&
+                !ev.target.hasAttribute('data-tab'))
         )
             return;
+        if (ev.target.dataset.tab) {
+            lastSelected = ev.target.dataset.tab as 'data';
+            return;
+        }
         const item = ev.target.dataset.menu;
         if (!item) return;
         return menuActions[item]?.(ev, ev.target);
@@ -2249,10 +2433,22 @@ function setupMenu() {
             loadFileInput.files
                 .item(0)
                 ?.text()
+                .then((val) => b64DecodeUnicode(val))
                 .then((val) => deserialize(val))
                 .then(() => location.reload());
         }
     });
+    const tabs = Object.values(
+        document.querySelectorAll('[data-tab]')
+    ) as HTMLDivElement[];
+    function render() {
+        for (let i = 0; i < tabs.length; ++i)
+            if (tabs[i].dataset.tab === lastSelected)
+                tabs[i].classList.add('selected');
+            else tabs[i].classList.remove('selected');
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
 }
 window.addEventListener('load', () => {
     setupDrawing();
@@ -2271,11 +2467,10 @@ window.addEventListener('load', () => {
     }
     document.body
         .getElementsByClassName('keybinds')[0]
-        ?.addEventListener(
-            'mousedown',
-            () => !minimized.keybinds && (lastSelected = 'keybinds')
-        );
+        ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));
+
     function render() {
+        if (lastSelected === 'music') loadMusic();
         for (let i = 0; i < document.body.children.length; ++i) {
             if (!document.body.children[i].hasAttribute('data-name')) continue;
             if (
@@ -2288,54 +2483,56 @@ window.addEventListener('load', () => {
         requestAnimationFrame(render);
     }
     requestAnimationFrame(render);
-    window.addEventListener('mousedown', (ev) =>
-        ev.target === document.body || ev.target === document.children[0]
-            ? (lastSelected = '')
-            : null
-    );
-    const windows = document.body.children;
-    for (let i = 0; i < windows.length; ++i) {
-        if (
-            windows[i].classList.contains('ignore') ||
-            windows[i].children.length < 1
-        )
-            continue;
-        const key = windows[i].getAttribute('data-name');
-        if (!key) continue;
-        minimized[key] = false;
-        windows[i].addEventListener('dblclick', (ev) => {
-            if (ev.target !== windows[i]) return;
-            windows[i].classList.toggle('minimized');
-            minimized[key] = !minimized[key];
-            if (!minimized[key]) lastSelected = key as any;
-            else lastSelected = '';
-        });
-        for (let j = 0; j < windows[i].children.length; ++j)
-            if (
-                (windows[i].children[j].tagName[0] === 'H' && j === 0) ||
-                windows[i].children[j].classList.contains('el-titlebar')
-            ) {
-                windows[i].children[j].addEventListener('dblclick', () => {
-                    windows[i].classList.toggle('minimized');
-                    minimized[key] = !minimized[key];
-                    if (!minimized[key]) lastSelected = key as any;
-                    else lastSelected = '';
-                });
-                break;
-            }
-    }
 });
 
-window.addEventListener('keydown', (ev) => {
-    if (ev.key === 'n' && ev.altKey)
-        menuActions.new(ev as any, undefined as any);
-    if (ev.key === 's' && ev.ctrlKey)
-        menuActions.save(ev as any, undefined as any);
-    if (ev.key === 'o' && ev.ctrlKey)
-        menuActions.load(ev as any, undefined as any);
-    if (ev.key === 'e' && ev.ctrlKey)
-        menuActions.export(ev as any, undefined as any);
-});
+window.addEventListener(
+    'keydown',
+    (ev) => {
+        if (lastSelected === 'compiled' && ev.key === 'F2') {
+            const name = `__screenshot-${Date.now()}`;
+            const image = stringifyImage({
+                width: WIDTH,
+                height: HEIGHT,
+                buf: memory.subarray(1),
+            });
+            addImage(name, image);
+            ev.preventDefault();
+            ev.cancelBubble = true;
+        }
+        if (lastSelected === 'compiled') return;
+        if (ev.key === 'n' && ev.altKey)
+            menuActions.new(ev as any, undefined as any);
+        if (ev.key === 's' && ev.ctrlKey)
+            menuActions.save(ev as any, undefined as any);
+        if (ev.key === 'o' && ev.ctrlKey)
+            menuActions.load(ev as any, undefined as any);
+        if (ev.key === 'e' && ev.ctrlKey)
+            menuActions.export(ev as any, undefined as any);
+        if (ev.key === 't' && ev.altKey && !ev.ctrlKey)
+            menuActions.test(ev as any, undefined as any);
+        if (ev.key === 't' && ev.altKey && ev.ctrlKey)
+            menuActions.compile(ev as any, undefined as any);
+        if (
+            ev.shiftKey &&
+            ev.ctrlKey &&
+            (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')
+        ) {
+            if (
+                ev.target instanceof HTMLInputElement ||
+                ev.target instanceof HTMLTextAreaElement
+            )
+                return;
+            ev.preventDefault();
+            ev.cancelBubble = true;
+            let index = tabs.indexOf(lastSelected) + tabs.length;
+            if (ev.key === 'ArrowRight') index++;
+            else index--;
+            index %= tabs.length;
+            lastSelected = tabs[index];
+        }
+    },
+    { capture: true }
+);
 
 function awaitLoad(el: HTMLImageElement): Promise<void> {
     return new Promise((res, rej) => {
@@ -2343,6 +2540,48 @@ function awaitLoad(el: HTMLImageElement): Promise<void> {
         el.addEventListener('load', () => res());
         el.addEventListener('error', rej);
     });
+}
+
+export function putImageData(
+    ctx: CanvasRenderingContext2D,
+    data: ImageData | null,
+    x: number,
+    y: number
+) {
+    if (!data) return;
+    const bgData = ctx.getImageData(x, y, data.width, data.height);
+    blendImageData(bgData, data);
+    ctx.putImageData(bgData, x, y);
+}
+
+export function blendImageData(data1: ImageData, data2: ImageData) {
+    if (data1.height !== data2.height || data1.width !== data2.width)
+        throw new Error('Width or height do not match between data1 and data2');
+
+    for (let h = 0; h < data1.height; ++h)
+        for (let w = 0; w < data1.width; ++w) {
+            const offset = (h * data1.width + w) * 4;
+            let r1 = data1.data[offset];
+            let g1 = data1.data[offset + 1];
+            let b1 = data1.data[offset + 2];
+
+            const r2 = data2.data[offset];
+            const g2 = data2.data[offset + 1];
+            const b2 = data2.data[offset + 2];
+            const a2 = data2.data[offset + 3];
+
+            r1 = (r1 * (255 - a2) + r2 * a2) / 255;
+            if (r1 > 255) r1 = 255;
+            g1 = (g1 * (255 - a2) + g2 * a2) / 255;
+            if (g1 > 255) g1 = 255;
+            b1 = (b1 * (255 - a2) + b2 * a2) / 255;
+            if (b1 > 255) b1 = 255;
+
+            data1.data[offset] = r1;
+            data1.data[offset + 1] = g1;
+            data1.data[offset + 2] = b1;
+            data1.data[offset + 3] = Math.max(a2, data1.data[offset + 3]);
+        }
 }
 
 function customWriteText(
@@ -2388,17 +2627,63 @@ function customWriteText(
     }
 }
 
-function compile(code: string): Promise<string | void> {
-    return fetch(window.location.origin + '/api/build', {
+async function compile(code: string): Promise<string | void> {
+    const stringImgs = getImages();
+    const stringMasks = getMasks();
+    const stringAudios = getAudios();
+    const images: Record<string, Requestify<Image>> = {};
+    const masks: Record<string, Requestify<ImageMask>> = {};
+    const audios: Record<string, Requestify<Audio>> = {};
+
+    for (const k of Object.keys(stringImgs)) {
+        if (k.startsWith('__screenshot')) continue;
+        try {
+            const parsed = parseImage(stringImgs[k]);
+            images[k] = {
+                buf: [...parsed.buf.values()],
+                height: parsed.height,
+                width: parsed.width,
+            };
+        } catch {}
+    }
+    for (const k of Object.keys(stringMasks)) {
+        try {
+            const parsed = parseMask(stringMasks[k]);
+            masks[k] = {
+                buf: [...parsed.buf.values()],
+                height: parsed.height,
+                width: parsed.width,
+            };
+        } catch {}
+    }
+    for (const k of Object.keys(stringAudios)) {
+        try {
+            const parsed = parseAudio(stringAudios[k]);
+            audios[k] = {
+                channel1Instrument: parsed.channel1Instrument,
+                channel2Instrument: parsed.channel2Instrument,
+                channel3Instrument: parsed.channel3Instrument,
+                channel4Instrument: parsed.channel4Instrument,
+                length: parsed.length,
+                channel1: [...parsed.channel1.values()],
+                channel2: [...parsed.channel2.values()],
+                channel3: [...parsed.channel3.values()],
+                channel4: [...parsed.channel4.values()],
+            };
+        } catch {}
+    }
+
+    return await fetch(window.location.origin + '/api/build', {
         method: 'post',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            code: '\n' + code,
-            images: getImages(),
-            masks: getMasks(),
-            audios: getAudios(),
+            code: '\n' + getCode(),
+            images,
+            masks,
+            audios,
+            texts: getTexts(),
         }),
     })
         .then((res) =>
@@ -2415,7 +2700,9 @@ function compile(code: string): Promise<string | void> {
                     '#b91c1c'
                 );
                 return;
-            } else return val;
+            } else {
+                return val;
+            }
         })
         .catch(() => {});
 }

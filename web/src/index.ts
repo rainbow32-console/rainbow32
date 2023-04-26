@@ -1,10 +1,19 @@
+import { canvasFullScreen } from '../../rainbow32/src/electron';
 import {
     Button,
+    defaultElGenProps,
+    getDebugString,
+    HEIGHT,
+    isLoaded,
     onLoad,
     Rainbow32ConsoleElementGeneratorOptions,
     Rainbow32ConsoleElements,
     registerEvent,
+    setDbgDataCollection,
+    startGame,
+    WIDTH,
 } from '../../rainbow32/src/index';
+import defaultImageData from './defaultImageData';
 
 let gameTitleH1: HTMLHeadingElement;
 
@@ -19,7 +28,6 @@ function makeBtn(classes: string[], type: Button) {
     div.style.justifyContent = 'center';
     div.style.userSelect = 'none';
     div.style.cursor = 'pointer';
-    div.style.fontFamily = 'sans-serif';
     div.style.fontWeight = 'bold';
     div.classList.add(...classes);
     div.textContent =
@@ -45,7 +53,6 @@ export function makeTextBtn(text: string): HTMLDivElement {
     div.style.justifyContent = 'center';
     div.style.userSelect = 'none';
     div.style.cursor = 'pointer';
-    div.style.fontFamily = 'sans-serif';
     div.style.fontWeight = 'bold';
     div.classList.add('__rainbow32_textbutton');
 
@@ -71,6 +78,7 @@ function genEls(
     canvas.style.imageRendering = 'pixelated';
     canvas.style.margin = '0px auto';
     canvas.classList.add(opt.classes.canvas);
+    document.getElementsByClassName(opt.classes.canvas)[0]?.remove();
     opt.frame.append(canvas);
 
     if (!opt.withControls)
@@ -92,6 +100,7 @@ function genEls(
         };
 
     const content = document.createElement('div');
+    document.getElementsByClassName('content')[0]?.remove();
     opt.frame.append(content);
     content.classList.add('content');
 
@@ -155,6 +164,17 @@ function genEls(
 
     const startBtn = makeTextBtn('Start');
     startBtn.classList.add(opt.classes.textButton, opt.classes.buttons.start);
+    startBtn.addEventListener(
+        'click',
+        (ev) => {
+            if (!isLoaded()) {
+                ev.preventDefault();
+                ev.cancelBubble = true;
+                onLoad(document.body, true, genEls).then(startGame);
+            }
+        },
+        { capture: true }
+    );
 
     const stopBtn = makeTextBtn('Stop');
     stopBtn.classList.add(opt.classes.textButton, opt.classes.buttons.stop);
@@ -180,8 +200,65 @@ function genEls(
 }
 
 window.addEventListener('load', () => {
-    onLoad(document.body, true, genEls);
+    if (!(globalThis as any).electron) {
+        const els = genEls(defaultElGenProps(document.body, false));
+        els.canvas.width = WIDTH;
+        els.canvas.height = HEIGHT;
+        els.canvas.getContext('2d')?.putImageData(defaultImageData, 0, 0);
+    } else onLoad(document.body, true, genEls);
+
+    const debugDataDiv = document.createElement('div');
+    debugDataDiv.classList.add('debug-data');
+    debugDataDiv.style.display = 'none';
+    const title = document.createElement('h3');
+    title.textContent = 'Debug Data';
+    const pre = document.createElement('pre');
+    pre.textContent = getDebugString();
+    debugDataDiv.append(title, pre);
+    let previous = Date.now();
+    function render(dt: number) {
+        pre.textContent = getDebugString();
+        pre.textContent += 'FPS: ' + (1000 / (dt - previous)).toFixed(0);
+        requestAnimationFrame(render);
+        previous = dt;
+    }
+    requestAnimationFrame(render);
+    document.body.append(debugDataDiv);
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'F6') {
+            ev.preventDefault();
+            debugDataDiv.style.display =
+                debugDataDiv.style.display === 'none' ? 'block' : 'none';
+            setDbgDataCollection(debugDataDiv.style.display !== 'none');
+        }
+    });
+    if (canvasFullScreen()) {
+        document.body.style.cursor = 'none';
+        document.body.style.height = '100vh';
+    } else {
+        document.body.style.cursor = '';
+        document.body.style.height = '';
+    }
 });
 
 registerEvent('afterLoad', (game) => (gameTitleH1.textContent = game.name));
 registerEvent('afterStop', () => (gameTitleH1.textContent = 'No game loaded!'));
+
+document.addEventListener(
+    'keydown',
+    (ev) => {
+        if (ev.key === 'Enter' && !isLoaded()) {
+            ev.preventDefault();
+            ev.cancelBubble = true;
+            onLoad(document.body, true, genEls).then(startGame);
+        }
+        if (ev.key === 'F11') {
+            ev.preventDefault();
+            if ((globalThis as any).electron) return;
+            document.body
+                .getElementsByTagName('canvas')[0]
+                ?.requestFullscreen();
+        }
+    },
+    { capture: true }
+);

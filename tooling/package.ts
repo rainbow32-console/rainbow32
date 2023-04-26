@@ -18,6 +18,14 @@ async function tree(dir: string) {
     return files.map((el) => relative(dir, el));
 }
 
+const consts: string[] = [];
+
+function registerConst(value: string) {
+    let name = `value_${consts.length}`;
+    consts.push(value);
+    return name;
+}
+
 async function generateRouter() {
     const entries = (await tree(join(__dirname, 'client', 'public')))
         .filter((el) => !el.endsWith('.map'))
@@ -30,12 +38,17 @@ async function generateRouter() {
                 el
             )}, (req:any, res:any) => res.type(${JSON.stringify(
                 el.substring(el.lastIndexOf('.'))
-            )}).end(${JSON.stringify(
-                (
-                    await readFile(join(__dirname, 'client', 'public', el))
-                ).toString()
+            )}).end(${registerConst(
+                `new Uint8Array(${JSON.stringify([
+                    ...(
+                        await readFile(join(__dirname, 'client', 'public', el))
+                    ).values(),
+                ])})`
             )}));\n`;
 
+    for (let i = 0; i < consts.length; ++i) {
+        str += `const value_${i} = ${consts[i]}\n`;
+    }
     return str;
 }
 

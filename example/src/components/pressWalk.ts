@@ -1,11 +1,11 @@
-import { Component } from 'library';
+import type { Component } from 'library';
 import { buttons, HEIGHT, WIDTH } from 'library';
 
-export const PressWalker = {
+export const PressWalker: Component<{ x: number; y: number; steps: number; speed: number }> = {
     init({ steps = 5, speed = 1 } = {}) {
         return { x: 0, y: 0, steps, speed };
     },
-    update(config, dt, ctx, gameObject) {
+    update(config, dt, gameObject) {
         const step = config.steps;
         if (buttons.up.down) config.y -= 0.05 * dt * config.speed;
         if (buttons.left.down) config.x -= 0.05 * dt * config.speed;
@@ -29,4 +29,4 @@ export const PressWalker = {
         gameObject.transform.position.y = Math.round(config.y / step) * step;
     },
     name: 'PressWalker',
-} as Component<{ x: number; y: number; steps: number; speed: number }>;
+};

@@ -1,3 +1,4 @@
+import { debugData, isCollectingDebugData } from '.';
 import { ImageRenderer } from './components/imageRenderer';
 import { Image, ImageMask, parseImage, parseMask } from './imageUtils';
 
@@ -25,12 +26,7 @@ export interface Transform {
 
 export interface Component<Config = void> {
     init(config: Partial<Config> | undefined, gameObject: GameObject): Config;
-    update?(
-        config: Config,
-        dt: number,
-        ctx: CanvasRenderingContext2D,
-        gameObject: GameObject
-    ): void;
+    update?(config: Config, dt: number, gameObject: GameObject): void;
     remove?(config: Config, gameObject: GameObject): void;
     readonly name: string;
 }
@@ -43,6 +39,8 @@ export interface GameObjectOptions {
     opacity?: number;
     transform?: Partial<Transform>;
     customRenderer?: boolean;
+    events?: Record<string, (obj: GameObject, ...args: any[]) => void>;
+    eventsOnce?: Record<string, (obj: GameObject, ...args: any[]) => void>;
 }
 
 type ComponentEntry<T> = { component: Component<T>; config?: Partial<T> };
@@ -56,22 +54,35 @@ export class GameObject {
     private componentData: Record<string, any> = {};
     active: boolean;
     readonly name: string;
-    opacity: number;
     private hasCustomRenderer: boolean;
+    private listeners: Record<
+        string,
+        { cb: (...args: any[]) => void; once: boolean }[]
+    > = {};
+    private initOpts: GameObjectOptions;
 
-    constructor({
-        image,
-        name,
-        components,
-        mask,
-        opacity,
-        transform,
-        customRenderer,
-    }: GameObjectOptions) {
+    constructor(opts: GameObjectOptions) {
+        this.initOpts = opts;
+        this.name = opts.name;
+        this.reset();
+    }
+
+    private reset() {
+        const {
+            image,
+            components,
+            mask,
+            transform,
+            customRenderer,
+            events,
+            eventsOnce,
+        } = this.initOpts;
+        this.components = {};
+        this.componentInitData = {};
+        this.componentData = {};
+        this.listeners = {};
         if (typeof image === 'string') this.image = parseImage(image);
         else this.image = image;
-        this.name = name;
-        this.opacity = opacity === undefined ? 1 : opacity;
         this.hasCustomRenderer = !!customRenderer;
 
         if (typeof mask === 'string') this.mask = parseMask(mask);
@@ -85,6 +96,10 @@ export class GameObject {
         };
         this.active = true;
 
+        if (events) for (const [k, v] of Object.entries(events)) this.on(k, v);
+        if (eventsOnce)
+            for (const [k, v] of Object.entries(eventsOnce)) this.once(k, v);
+
         if (components) this.addComponents(components);
         if (!this.hasCustomRenderer)
             this.addComponents([{ component: ImageRenderer }]);
@@ -95,16 +110,29 @@ export class GameObject {
             if (!this.components[components[i].component.name]) {
                 this.componentData[components[i].component.name] = components[
                     i
-                ].component.init(components[i].config, this);
+                ].component.init(components[i].config || {}, this);
                 this.components[components[i].component.name] =
                     components[i].component;
                 this.componentInitData[components[i].component.name] =
                     components[i].config;
+                this.emitEvent('componentAdded', [
+                    components[i].component.name,
+                    components[i].component,
+                    components[i].config,
+                    this.componentData[components[i].component.name],
+                ]);
             }
     }
 
     removeComponent(component: string) {
-        this.components[component]?.remove?.(
+        if (!this.components[component]) return;
+        this.emitEvent('componentRemoved', [
+            component,
+            this.components[component],
+            this.componentData[component],
+            this.componentInitData[component],
+        ]);
+        this.components[component].remove?.(
             this.componentData[component],
             this
         );
@@ -117,37 +145,73 @@ export class GameObject {
         return this.components[component] as T;
     }
 
+    getComponentData<T extends Component<any>>(
+        component: string
+    ): Required<Parameters<T['init']>[0]> | undefined {
+        return this.componentData[component] as any;
+    }
+
     remove() {
+        this.emitEvent('remove', []);
         const keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
             this.components[keys[i]]?.remove?.(
                 this.componentData[keys[i]],
                 this
             );
+        this.reset();
     }
 
     init() {
+        this.emitEvent('init', []);
         const keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
             this.componentData[keys[i]] = this.components[keys[i]]?.init(
-                this.componentInitData[keys[i]],
+                this.componentInitData[keys[i]] || {},
                 this
             );
         if (!this.hasCustomRenderer)
             this.addComponents([{ component: ImageRenderer }]);
     }
 
-    render(dt: number, ctx: CanvasRenderingContext2D) {
+    render(dt: number) {
         if (!this.active) return;
+        if (isCollectingDebugData)
+            debugData['Update State'] = 'GameObject::' + this.name;
+        this.emitEvent('render', [dt]);
 
         let keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
             this.components[keys[i]]?.update?.(
                 this.componentData[keys[i]],
                 dt,
-                ctx,
                 this
             );
+        this.emitEvent('renderLate', [dt]);
+    }
+
+    off(name: string, cb: (obj: GameObject, ...args: any[]) => void) {
+        if (!this.listeners[name]) return;
+        this.listeners[name] = this.listeners[name].filter(
+            (el) => el.cb !== cb
+        );
+    }
+
+    once(name: string, cb: (obj: GameObject, ...args: any[]) => void): void {
+        this.listeners[name] ||= [];
+        this.listeners[name].push({ cb, once: true });
+    }
+
+    on(name: string, cb: (obj: GameObject, ...args: any[]) => void): void {
+        this.listeners[name] ||= [];
+        this.listeners[name].push({ cb, once: false });
+    }
+
+    emitEvent(name: string, args: any[]) {
+        if (!this.listeners[name]) return;
+        for (let i = 0; i < this.listeners[name].length; ++i)
+            this.listeners[name][i].cb(this, ...args);
+        this.listeners[name] = this.listeners[name].filter((el) => !el.once);
     }
 }
 

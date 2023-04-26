@@ -1,14 +1,25 @@
+@font-face {
+    font-family: pixeloid;
+    src: url(./pixeloid.ttf);
+}
+
+:root {
+    --font: pixeloid, monospace;
+}
+
 * {
     margin: 0;
     padding: 0;
-    font-family: sans-serif;
+    font-family: var(--font);
     user-select: none;
 }
 body {
     background-color: #262626;
+    width: 100%;
+    height: 100%;
 }
 :root {
-    --bg-col: #fff;
+    --bg-col: #000;
 }
 .content {
     margin-top: 51vh;
@@ -39,7 +50,7 @@ body {
     justify-content: center;
     user-select: none;
     cursor: pointer;
-    font-family: sans-serif;
+    font-family: var(--font);
     font-weight: bold;
     padding: 0px 0.5rem;
     min-width: 3rem;
@@ -72,24 +83,50 @@ body {
     text-decoration: underline;
 }
 
+.cartridge {
+    width: 50%;
+    aspect-ratio: 128/150;
+    background-image: var(--img);
+    background-size: contain;
+    box-sizing: border-box;
+    image-rendering: pixelated;
+}
+
+.cartridge.active {
+    background-color: #15803d;
+}
+
 .fileSelector {
     padding-top: 0px;
     overflow: hidden;
     width: auto;
-    height: 50vh;
-    aspect-ratio: 200/180;
+    height: 95vh;
+    aspect-ratio: 206/180;
     position: absolute;
-    top: 0px;
+    top: 5vh;
     bottom: 0px;
     left: 0px;
     right: 0px;
     margin: 0px auto;
     z-index: 20;
-    background-color: white;
+    background-color: #000;
+    font-size: 18px;
+    font-weight: bold;
+    color: white;
 }
 
 .path {
     border-bottom: 1px solid gray;
     padding: 0.25rem;
     user-select: none;
+}
+
+.debug-data {
+    color: white;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+canvas {
+    cursor: none;
 }
