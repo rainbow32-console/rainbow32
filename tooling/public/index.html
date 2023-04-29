@@ -1,13 +1,13 @@
 <body>
     <div class="topbar ignore">
         <div class="text-button">
-            File
+            file
             <div>
                 <div class="text-button button-menu" data-menu="save">
-                    Save <kbd>Ctrl+S</kbd>
+                    save <kbd>ctrl+s</kbd>
                 </div>
                 <div class="text-button button-menu" data-menu="load">
-                    Open <kbd>Ctrl+O</kbd>
+                    open <kbd>ctrl+o</kbd>
                     <input
                         type="file"
                         class="menu-load-file"
@@ -16,74 +16,76 @@
                     />
                 </div>
                 <div class="text-button button-menu" data-menu="new">
-                    New project <kbd>Alt+N</kbd>
+                    new project <kbd>alt+n</kbd>
                 </div>
                 <div class="text-button button-menu" data-menu="export">
-                    Export Cartridge <kbd>Ctrl+E</kbd>
+                    export cartridge <kbd>ctrl+e</kbd>
                 </div>
                 <div class="text-button button-menu" data-menu="test">
-                    Test your game <kbd>Alt+T</kbd>
+                    test your game <kbd>alt+t</kbd>
                 </div>
                 <div class="text-button button-menu" data-menu="compile">
-                    Download your game <kbd>Ctrl+Alt+T</kbd>
+                    download your game <kbd>ctrl+alt+t</kbd>
                 </div>
             </div>
         </div>
-        <div class="text-button row" data-tab="draw">Drawing Tool</div>
-        <div class="text-button row" data-tab="mask">Masking Tool</div>
-        <div class="text-button row" data-tab="keybinds">Keybinds</div>
-        <div class="text-button row" data-tab="music">Music editor</div>
-        <div class="text-button row" data-tab="editor">Code Editor</div>
-        <div class="text-button row" data-tab="data">Data Manager</div>
+        <div class="text-button row" data-tab="draw">drawing Tool</div>
+        <div class="text-button row" data-tab="mask">masking Tool</div>
+        <div class="text-button row" data-tab="keybinds">keybinds</div>
+        <div class="text-button row" data-tab="music">music editor</div>
+        <div class="text-button row" data-tab="editor">code editor</div>
+        <div class="text-button row" data-tab="data">data manager</div>
+        <div class="text-button row" data-tab="utils">utils</div>
     </div>
     <div class="draw" data-name="draw"></div>
     <div class="mask" data-name="mask"></div>
     <div class="keybinds" data-name="keybinds">
         <!-- ← ↑ → ↓  -->
-        <h2>Keybinds</h2>
-        <h4>Global</h4>
-        <p><kbd>Ctrl</kbd>+<kbd>S</kbd>: Save project</p>
-        <p><kbd>Ctrl</kbd>+<kbd>O</kbd>: Open project</p>
-        <p><kbd>Alt</kbd>+<kbd>N</kbd>: Create a new project</p>
+        <h2>keybinds</h2>
+        <h4>global</h4>
+        <p><kbd>ctrl</kbd>+<kbd>s</kbd>: save project</p>
+        <p><kbd>ctrl</kbd>+<kbd>o</kbd>: open project</p>
+        <p><kbd>alt</kbd>+<kbd>n</kbd>: create a new project</p>
         <p>
-            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>→</kbd>: Move to the right tab
+            <kbd>ctrl</kbd>+<kbd>shift</kbd>+<kbd>→</kbd>: move to the right tab
         </p>
         <p>
-            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>←</kbd>: Move to the left tab
+            <kbd>ctrl</kbd>+<kbd>shift</kbd>+<kbd>←</kbd>: move to the left tab
         </p>
         <p>
-            <kbd>Doubleclick</kbd> on any window: Minimize or maximize the
+            <kbd>doubleclick</kbd> on any window: minimize or maximize the
             window
         </p>
-        <h4>Drawing Tool</h4>
+        <h4>drawing tool</h4>
         <p>
-            <kbd>←</kbd>/<kbd>↑</kbd>/<kbd>→</kbd>/<kbd>↓</kbd>: Palette
+            <kbd>←</kbd>/<kbd>↑</kbd>/<kbd>→</kbd>/<kbd>↓</kbd>: palette
             selection move
         </p>
         <p>
-            <kbd>Alt</kbd>+<kbd>+</kbd>/<kbd>Alt</kbd>+<kbd>-</kbd>: Zoom in/out
+            <kbd>alt</kbd>+<kbd>+</kbd>/<kbd>alt</kbd>+<kbd>-</kbd>: zoom in/out
         </p>
-        <h4>Masking tool</h4>
+        <h4>masking tool</h4>
         <p>
-            <kbd>Alt</kbd>+<kbd>+</kbd>/<kbd>Alt</kbd>+<kbd>-</kbd>: Zoom in/out
+            <kbd>alt</kbd>+<kbd>+</kbd>/<kbd>alt</kbd>+<kbd>-</kbd>: zoom in/out
         </p>
-        <h4>Music Tool</h4>
-        <p><kbd>←</kbd>/<kbd>→</kbd>: Selection left/right</p>
-        <p><kbd>↑</kbd>/<kbd>↓</kbd>: Octave up/down</p>
+        <h4>music tool</h4>
+        <p><kbd>←</kbd>/<kbd>→</kbd>: selection left/right</p>
+        <p><kbd>↑</kbd>/<kbd>↓</kbd>: octave up/down</p>
         <p>
-            <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>Alt</kbd>+<kbd>↓</kbd>: Selected
+            <kbd>alt</kbd>+<kbd>↑</kbd>/<kbd>alt</kbd>+<kbd>↓</kbd>: selected
             channel up/down
         </p>
-        <p><kbd>+</kbd>/<kbd>-</kbd>: Increase/decrease the sounds length</p>
-        <p><kbd>Space</kbd>: Play/pause</p>
-        <p><kbd>Escape</kbd>: Clear current note</p>
+        <p><kbd>+</kbd>/<kbd>-</kbd>: increase/decrease the sounds length</p>
+        <p><kbd>space</kbd>: play/pause</p>
+        <p><kbd>escape</kbd>: clear current note</p>
         <p>
-            <kbd>Key on the bottom of the keyboard</kbd>: Set current note to
+            <kbd>key on the bottom of the keyboard</kbd>: set current note to
             key
         </p>
     </div>
     <div class="music" data-name="music"></div>
     <div class="data" style="min-width: 30vw" data-name="data"></div>
+    <div class="utils" data-name="utils"></div>
     <div class="editor" data-name="editor">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs/loader.min.js"></script>
         <script>

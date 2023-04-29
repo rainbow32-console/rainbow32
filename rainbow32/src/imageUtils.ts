@@ -314,35 +314,57 @@ export function imgToPng(
     return canvas.toDataURL(type || 'image/png');
 }
 
+let offsetX: number = 0;
+let offsetY: number = 0;
+
+export function setOffset(x: number, y: number) {
+    offsetX = x;
+    offsetY = y;
+}
+
 export function putImage(x: number, y: number, image: Image) {
     isDirty = true;
-    x = Math.floor(x);
-    y = Math.floor(y);
+    x = Math.floor(x+offsetX);
+    y = Math.floor(y+offsetY);
     for (let h = 0; h < image.height; ++h) {
+        if (y + h >= HEIGHT) break;
         for (let w = 0; w < image.width; ++w) {
+            if (x + w >= WIDTH) break;
             const off = (h + y) * WIDTH + x + w;
-            if (off >= WIDTH * HEIGHT) continue;
             if (image.buf[h * image.width + w] === 0xff) continue;
             memory[off + 1] = image.buf[h * image.width + w];
         }
     }
 }
 
+export function setPixel(x: number, y: number, color: number|string) {
+    if (typeof color === 'string') color = parseInt(color, 15);
+    if (!isValidColor(color)) throw new Error('Color is invalid!');
+    x = Math.floor(x+offsetX);
+    y = Math.floor(y+offsetY);
+    if (x >= WIDTH) return;
+    if (y >= HEIGHT) return;
+    if (x < 0) return;
+    if (y < 0) return;
+    memory[y * WIDTH + x + 1] = color;
+}
+
 export function putImageRaw(x: number, y: number, image: Image) {
     isDirty = true;
-    x = Math.floor(x);
-    y = Math.floor(y);
+    x = Math.floor(x+offsetX);
+    y = Math.floor(y+offsetY);
     for (let h = 0; h < image.height; ++h) {
+        if (y + h >= HEIGHT) break;
         for (let w = 0; w < image.width; ++w) {
+            if (x + w >= WIDTH) break;
             const off = (h + y) * WIDTH + x + w;
-            if (off >= WIDTH * HEIGHT) continue;
             memory[off + 1] = image.buf[h * image.width + w];
         }
     }
 }
 
 export function isValidColor(color: number): boolean {
-    return color > -1 && color < 32;
+    return (color > -1 && color < 32) || color === 255;
 }
 
 export function square(
@@ -418,4 +440,8 @@ export function removeDirtyMark() {
 }
 export function markAsDirty() {
     isDirty = true;
+}
+
+export function cls() {
+    for (let i = 0; i < WIDTH * HEIGHT; ++i) memory[i + 1] = 0xff;
 }

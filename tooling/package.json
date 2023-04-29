@@ -1,11 +1,12 @@
 {
     "scripts": {
-        "watch": "esbuild --watch --bundle --outdir=./public/dist --minify --sourcemap ./src/index.ts",
-        "build": "esbuild --bundle --outdir=./public/dist --minify --sourcemap ./src/index.ts && tsx package.ts"
+        "watch": "tsx package.ts"
     },
     "dependencies": {
-        "@types/express": "^4.17.17",
         "esbuild-wasm": "^0.17.18",
         "library": "../library/dist"
+    },
+    "devDependencies": {
+        "esbuild": "^0.17.18"
     }
 }

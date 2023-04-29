@@ -12,7 +12,7 @@ import {
     stringifyMask,
 } from '../../rainbow32/src/imageUtils';
 import { imageDataURI } from './img';
-import { compileTypescript } from './esbuild';
+import { compileTypescript, compile } from './esbuild';
 import {
     getSound,
     Instrument,
@@ -24,7 +24,6 @@ import {
 } from '../../rainbow32/src/audioUtils';
 import { download, sleep } from '../../rainbow32/src/utils';
 import globals from './globals';
-import { compile } from './esbuild';
 import {
     getDebugString,
     HEIGHT,
@@ -38,6 +37,7 @@ import {
 import { _getCode } from './newCode';
 import _default from '../../rainbow32/src/fonts/default';
 import { b64DecodeUnicode, b64EncodeUnicode } from './b64';
+import { calculateWidth } from '../../rainbow32/src/text';
 
 function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
     const palette = getCurrentPalette();
@@ -194,11 +194,19 @@ function textButton(
     );
 }
 
-type tab = 'draw' | 'mask' | 'music' | 'keybinds' | 'editor' | 'data';
+type tab = 'draw' | 'mask' | 'music' | 'keybinds' | 'editor' | 'data' | 'utils';
 
 let lastSelected: 'compiled' | tab = 'draw';
 
-const tabs: tab[] = ['draw', 'mask', 'keybinds', 'music', 'editor', 'data'];
+const tabs: tab[] = [
+    'draw',
+    'mask',
+    'keybinds',
+    'music',
+    'editor',
+    'data',
+    'utils',
+];
 
 declare var require: any;
 declare var monaco: any;
@@ -389,6 +397,9 @@ function closeX() {
     svg.append(path1, path2, path3);
     return svg;
 }
+function row(...elements: HTMLElement[]) {
+    return h('div', { class: 'row' }, elements);
+}
 
 export function createNotification(
     title: string,
@@ -469,7 +480,7 @@ async function openImagePopup(url: string) {
         'img',
         {
             src: url,
-            style: 'image-rendering: pixelated;height: 100%;',
+            style: 'image-rendering: pixelated;flex-grow: 1;',
         },
         []
     );
@@ -535,21 +546,21 @@ async function openPopup(code: string) {
 
     const debugDataPre = h('pre', {}, []);
     const keybindsDiv = h('div', { class: 'popup-keybinds' }, [
-        h('p', {}, [kbd('w'), text('/'), kbd('↑'), text(': Trigger up key')]),
-        h('p', {}, [kbd('a'), text('/'), kbd('←'), text(': Trigger left key')]),
-        h('p', {}, [kbd('s'), text('/'), kbd('↓'), text(': Trigger down key')]),
+        h('p', {}, [kbd('w'), text('/'), kbd('U'), text(': trigger up key')]),
+        h('p', {}, [kbd('a'), text('/'), kbd('L'), text(': trigger left key')]),
+        h('p', {}, [kbd('s'), text('/'), kbd('D'), text(': trigger down key')]),
         h('p', {}, [
             kbd('d'),
             text('/'),
-            kbd('→'),
-            text(': Trigger right key'),
+            kbd('R'),
+            text(': trigger right key'),
         ]),
-        h('p', {}, [kbd('u'), text(': Trigger action 1 key')]),
-        h('p', {}, [kbd('i'), text(': Trigger action 2 key')]),
-        h('p', {}, [kbd('o'), text(': Trigger action 3 key')]),
-        h('p', {}, [kbd('p'), text(': Trigger action 4 key')]),
+        h('p', {}, [kbd('u'), text(': trigger action 1 key')]),
+        h('p', {}, [kbd('i'), text(': trigger action 2 key')]),
+        h('p', {}, [kbd('o'), text(': trigger action 3 key')]),
+        h('p', {}, [kbd('p'), text(': trigger action 4 key')]),
         h('br', {}, []),
-        h('h3', {}, [text('Debug Data')]),
+        h('h3', {}, [text('debug data')]),
         debugDataPre,
     ]);
     popup.append(svg);
@@ -579,15 +590,15 @@ async function openPopup(code: string) {
         if (stopRender) return;
         debugDataPre.textContent = getDebugString();
         debugDataPre.textContent +=
-            'FPS: ' + (1000 / (dt - previous)).toFixed(0);
+            'fps: ' + (1000 / (dt - previous)).toFixed(0);
         requestAnimationFrame(render);
         previous = dt;
     }
     requestAnimationFrame(render);
 
     function keydown(ev: KeyboardEvent) {
-        if (ev.key === 'Escape' || ev.key === 'Enter') {
-            close();
+        if (ev.key === 'Escape') close();
+        if (ev.key === 'Enter' || ev.key === 'Escape') {
             ev.cancelBubble = true;
             ev.preventDefault();
         }
@@ -608,7 +619,7 @@ function setupDrawing() {
     drawElement.addEventListener('mousedown', () => (lastSelected = 'draw'));
 
     const palette = makePalette(true, 0);
-    drawElement.append(h('h2', {}, [text('Drawing tool')]), palette);
+    drawElement.append(h('h2', {}, [text('drawing tool')]), palette);
     let selected = 0;
     let width = 16;
     let height = 16;
@@ -669,9 +680,9 @@ function setupDrawing() {
     ) as HTMLInputElement;
     drawElement.append(
         h('div', {}, [
-            h('h3', {}, [text('Width:')]),
+            h('h3', {}, [text('width:')]),
             widthIn,
-            h('h3', {}, [text('Height:')]),
+            h('h3', {}, [text('height:')]),
             heightIn,
         ])
     );
@@ -719,10 +730,10 @@ function setupDrawing() {
         },
         []
     ) as HTMLTextAreaElement;
-    const loadBtn = textButton({ class: 'img-load-btn' }, [text('Load')]);
-    const clearBtn = textButton({ class: 'img-clear-btn' }, [text('Clear')]);
+    const loadBtn = textButton({ class: 'img-load-btn' }, [text('load')]);
+    const clearBtn = textButton({ class: 'img-clear-btn' }, [text('clear')]);
     const pngBtn = textButton({ class: 'img-download-btn' }, [
-        text('Save as PNG'),
+        text('save as png'),
     ]);
     const fromInput = h(
         'input',
@@ -747,7 +758,7 @@ function setupDrawing() {
                 h(
                     'label',
                     { class: 'img-upload-btn text-button', for: 'img-upload' },
-                    [text('Load from png')]
+                    [text('load from png')]
                 ),
             ]),
         ])
@@ -916,11 +927,11 @@ function setupMasking() {
         []
     ) as HTMLInputElement;
     maskingDiv.append(
-        h('h2', {}, [text('Masking Tool')]),
+        h('h2', {}, [text('masking Tool')]),
         h('div', {}, [
-            h('h3', {}, [text('Width:')]),
+            h('h3', {}, [text('width:')]),
             widthIn,
-            h('h3', {}, [text('Height:')]),
+            h('h3', {}, [text('height:')]),
             heightIn,
         ])
     );
@@ -977,9 +988,9 @@ function setupMasking() {
         },
         []
     ) as HTMLTextAreaElement;
-    const btnClear = h('div', { class: 'text-button' }, [text('Clear')]);
+    const btnClear = h('div', { class: 'text-button' }, [text('clear')]);
     const btnLoad = h('div', { class: 'text-button mask-load-btn' }, [
-        text('Load'),
+        text('load'),
     ]);
     maskingDiv.append(
         h('div', { class: 'row' }, [
@@ -1095,7 +1106,7 @@ function setupMusic() {
     if (!element) return;
     element.addEventListener('mousedown', () => (lastSelected = 'music'));
 
-    element.append(h('h2', {}, [text('Music editor')]));
+    element.append(h('h2', {}, [text('music editor')]));
     const lengthInput = h(
         'input',
         { type: 'number', value: '16' },
@@ -1106,15 +1117,15 @@ function setupMusic() {
         { type: 'number', value: '500' },
         []
     ) as HTMLInputElement;
-    const playBtn = h('div', { class: 'text-button' }, [text('Play')]);
+    const playBtn = h('div', { class: 'text-button' }, [text('play')]);
 
     element.append(
         h('div', { class: 'row', style: 'gap: .25rem;' }, [
-            h('h3', {}, [text('Channel')]),
-            h('h3', {}, [text('Length')]),
+            h('h3', {}, [text('channel')]),
+            h('h3', {}, [text('length')]),
             lengthInput,
             h('div', { style: 'flex-grow: 1;' }, []),
-            h('h3', {}, [text('Speed (ms)')]),
+            h('h3', {}, [text('speed (ms)')]),
             speedInput,
             playBtn,
         ])
@@ -1177,9 +1188,9 @@ function setupMusic() {
                 [
                     text(
                         data[0][i] && data[0][i].octave !== undefined
-                            ? `${data[0][i].sound.toUpperCase()}${
+                            ? `${data[0][i].sound.toLowerCase()}${
                                   data[0][i].octave
-                              }${data[0][i].halfToneStepUp ? '#' : ''}`
+                              }${data[0][i].sharp ? '#' : ''}`
                             : ''
                     ),
                 ]
@@ -1202,7 +1213,7 @@ function setupMusic() {
                 if (data[channel - 1][i]) {
                     currentNote = data[channel - 1][i].sound;
                     currentOctave = data[channel - 1][i].octave;
-                    sharp = data[channel - 1][i].halfToneStepUp;
+                    sharp = data[channel - 1][i].sharp;
                 } else {
                     currentNote = null;
                     currentOctave = null;
@@ -1214,9 +1225,9 @@ function setupMusic() {
             const node2 = h('div', { class: 'audio-entry' }, [
                 text(
                     data[1][i] && data[1][i].octave !== undefined
-                        ? `${data[1][i].sound.toUpperCase()}${
+                        ? `${data[1][i].sound.toLowerCase()}${
                               data[1][i].octave
-                          }${data[1][i].halfToneStepUp ? '#' : ''}`
+                          }${data[1][i].sharp ? '#' : ''}`
                         : ''
                 ),
             ]);
@@ -1238,7 +1249,7 @@ function setupMusic() {
                 if (data[channel - 1][i]) {
                     currentNote = data[channel - 1][i].sound;
                     currentOctave = data[channel - 1][i].octave;
-                    sharp = data[channel - 1][i].halfToneStepUp;
+                    sharp = data[channel - 1][i].sharp;
                 } else {
                     currentNote = null;
                     currentOctave = null;
@@ -1250,9 +1261,9 @@ function setupMusic() {
             const node3 = h('div', { class: 'audio-entry' }, [
                 text(
                     data[2][i] && data[2][i].octave !== undefined
-                        ? `${data[2][i].sound.toUpperCase()}${
+                        ? `${data[2][i].sound.toLowerCase()}${
                               data[2][i].octave
-                          }${data[2][i].halfToneStepUp ? '#' : ''}`
+                          }${data[2][i].sharp ? '#' : ''}`
                         : ''
                 ),
             ]);
@@ -1274,7 +1285,7 @@ function setupMusic() {
                 if (data[channel - 1][i]) {
                     currentNote = data[channel - 1][i].sound;
                     currentOctave = data[channel - 1][i].octave;
-                    sharp = data[channel - 1][i].halfToneStepUp;
+                    sharp = data[channel - 1][i].sharp;
                 } else {
                     currentNote = null;
                     currentOctave = null;
@@ -1286,9 +1297,9 @@ function setupMusic() {
             const node4 = h('div', { class: 'audio-entry' }, [
                 text(
                     data[3][i] && data[3][i].octave !== undefined
-                        ? `${data[3][i].sound.toUpperCase()}${
+                        ? `${data[3][i].sound.toLowerCase()}${
                               data[3][i].octave
-                          }${data[3][i].halfToneStepUp ? '#' : ''}`
+                          }${data[3][i].sharp ? '#' : ''}`
                         : ''
                 ),
             ]);
@@ -1310,7 +1321,7 @@ function setupMusic() {
                 if (data[channel - 1][i]) {
                     currentNote = data[channel - 1][i].sound;
                     currentOctave = data[channel - 1][i].octave;
-                    sharp = data[channel - 1][i].halfToneStepUp;
+                    sharp = data[channel - 1][i].sharp;
                 } else {
                     currentNote = null;
                     currentOctave = null;
@@ -1339,37 +1350,37 @@ function setupMusic() {
     let currentOctave: Sound['octave'] | null = null;
     let sharp: boolean = false;
 
-    const clearBtnCur = h('div', { class: 'text-button' }, [text('Clear')]);
+    const clearBtnCur = h('div', { class: 'text-button' }, [text('clear')]);
     const clearBtnChan = h('div', { class: 'text-button' }, [
-        text('Clear Channel'),
+        text('clear channel'),
     ]);
-    const clearBtnAll = h('div', { class: 'text-button' }, [text('Clear All')]);
-    const octaveDown = h('div', { class: 'text-button' }, [text('<')]);
-    const octaveUp = h('div', { class: 'text-button' }, [text('>')]);
+    const clearBtnAll = h('div', { class: 'text-button' }, [text('clear all')]);
+    const octaveDown = h('div', { class: 'text-button' }, [text('L')]);
+    const octaveUp = h('div', { class: 'text-button' }, [text('R')]);
     const octave = h('div', { class: 'text-button-fake' }, [text('')]);
     const instrumentSelector = h('select', { class: 'input-select' }, [
         h('option', { value: 'square-wave', selected: '' }, [
-            text('Square Wave'),
+            text('square wave'),
         ]),
-        h('option', { value: 'sine-wave' }, [text('Sine Wave')]),
-        h('option', { value: 'sawtooth-wave' }, [text('Sawtooth Wave')]),
-        h('option', { value: 'triangle-wave' }, [text('Triangle Wave')]),
-        h('option', { value: 'noise' }, [text('Noise')]),
+        h('option', { value: 'sine-wave' }, [text('sine wave')]),
+        h('option', { value: 'sawtooth-wave' }, [text('sawtooth wave')]),
+        h('option', { value: 'triangle-wave' }, [text('triangle wave')]),
+        h('option', { value: 'noise' }, [text('noise')]),
     ]) as HTMLSelectElement;
 
     element.append(
-        h('h3', {}, [text('Channels')]),
+        h('h3', {}, [text('channels')]),
         currentlyRenderedDiv,
         h('div', { class: 'row', style: 'gap:.25rem;' }, [
             clearBtnCur,
             clearBtnChan,
             clearBtnAll,
-            h('h3', { style: 'margin-left: 2rem' }, [text('Octave:')]),
+            h('h3', { style: 'margin-left: 2rem' }, [text('octave:')]),
             octaveDown,
             octave,
             octaveUp,
             h('div', { style: 'width: 2rem' }, []),
-            h('h3', { style: 'margin-left: 2rem' }, [text('Instrument:')]),
+            h('h3', { style: 'margin-left: 2rem' }, [text('instrument:')]),
             instrumentSelector,
         ])
     );
@@ -1382,7 +1393,7 @@ function setupMusic() {
                 'data-key': 'c',
                 'data-sharp': 'false',
             },
-            [text('C'), kbd('D')]
+            [text('c'), kbd('d')]
         ),
         h(
             'div',
@@ -1391,7 +1402,7 @@ function setupMusic() {
                 'data-key': 'c',
                 'data-sharp': 'true',
             },
-            [text('C#'), kbd('C')]
+            [text('c#'), kbd('c')]
         ),
         h(
             'div',
@@ -1400,7 +1411,7 @@ function setupMusic() {
                 'data-key': 'd',
                 'data-sharp': 'false',
             },
-            [text('D'), kbd('F')]
+            [text('d'), kbd('f')]
         ),
         h(
             'div',
@@ -1409,7 +1420,7 @@ function setupMusic() {
                 'data-key': 'd',
                 'data-sharp': 'true',
             },
-            [text('D#'), kbd('V')]
+            [text('d#'), kbd('v')]
         ),
         h(
             'div',
@@ -1418,7 +1429,7 @@ function setupMusic() {
                 'data-key': 'e',
                 'data-sharp': 'false',
             },
-            [text('E'), kbd('G')]
+            [text('e'), kbd('g')]
         ),
         h(
             'div',
@@ -1427,7 +1438,7 @@ function setupMusic() {
                 'data-key': 'f',
                 'data-sharp': 'false',
             },
-            [text('F'), kbd('B')]
+            [text('f'), kbd('b')]
         ),
         h(
             'div',
@@ -1436,7 +1447,7 @@ function setupMusic() {
                 'data-key': 'f',
                 'data-sharp': 'true',
             },
-            [text('F#'), kbd('H')]
+            [text('f#'), kbd('h')]
         ),
         h(
             'div',
@@ -1445,7 +1456,7 @@ function setupMusic() {
                 'data-key': 'g',
                 'data-sharp': 'false',
             },
-            [text('G'), kbd('N')]
+            [text('g'), kbd('n')]
         ),
         h(
             'div',
@@ -1454,7 +1465,7 @@ function setupMusic() {
                 'data-key': 'g',
                 'data-sharp': 'true',
             },
-            [text('G#'), kbd('J')]
+            [text('g#'), kbd('j')]
         ),
         h(
             'div',
@@ -1463,7 +1474,7 @@ function setupMusic() {
                 'data-key': 'a',
                 'data-sharp': 'false',
             },
-            [text('A'), kbd('M')]
+            [text('a'), kbd('m')]
         ),
         h(
             'div',
@@ -1472,7 +1483,7 @@ function setupMusic() {
                 'data-key': 'a',
                 'data-sharp': 'true',
             },
-            [text('A#'), kbd('K')]
+            [text('a#'), kbd('k')]
         ),
         h(
             'div',
@@ -1481,7 +1492,7 @@ function setupMusic() {
                 'data-key': 'b',
                 'data-sharp': 'false',
             },
-            [text('B'), kbd('L')]
+            [text('b'), kbd('l')]
         ),
     ];
 
@@ -1492,7 +1503,7 @@ function setupMusic() {
             delete data[channel - 1][selectedNote];
         else
             data[channel - 1][selectedNote] = {
-                halfToneStepUp: sharp,
+                sharp: sharp,
                 octave: currentOctave,
                 sound: currentNote,
             };
@@ -1504,7 +1515,7 @@ function setupMusic() {
         else
             currentlyRenderedDiv.children[channel - 1].children[
                 selectedNote
-            ].textContent = `${currentNote.toUpperCase()}${currentOctave}${
+            ].textContent = `${currentNote.toLowerCase()}${currentOctave}${
                 sharp ? '#' : ''
             }`;
 
@@ -1514,7 +1525,7 @@ function setupMusic() {
                     {
                         sound: currentNote!,
                         octave: currentOctave!,
-                        halfToneStepUp: sharp,
+                        sharp: sharp,
                     },
                     instruments[channel - 1],
                     0.5,
@@ -1535,7 +1546,7 @@ function setupMusic() {
         loadMusic().then(() =>
             playSound(
                 {
-                    halfToneStepUp: false,
+                    sharp: false,
                     octave: 4,
                     sound: 'c',
                 },
@@ -1604,11 +1615,11 @@ function setupMusic() {
     async function playPause() {
         if (isPlaying) {
             isPlaying = false;
-            playBtn.textContent = 'Play';
+            playBtn.textContent = 'play';
             return;
         }
         isPlaying = true;
-        playBtn.textContent = 'Stop';
+        playBtn.textContent = 'stop';
         let speed = Number(speedInput.value);
         if (isNaN(speed) || !isFinite(speed) || speed <= 1) speed = 0.5;
         else speed /= 1000;
@@ -1667,7 +1678,7 @@ function setupMusic() {
             if (data[channel - 1][selectedNote]) {
                 currentNote = data[channel - 1][selectedNote].sound;
                 currentOctave = data[channel - 1][selectedNote].octave;
-                sharp = data[channel - 1][selectedNote].halfToneStepUp;
+                sharp = data[channel - 1][selectedNote].sharp;
             } else {
                 currentNote = null;
                 currentOctave = null;
@@ -1699,7 +1710,7 @@ function setupMusic() {
                     currentNote = null;
                     currentOctave = null;
                 } else {
-                    sharp = data[channel - 1][selectedNote].halfToneStepUp;
+                    sharp = data[channel - 1][selectedNote].sharp;
                     currentNote = data[channel - 1][selectedNote].sound;
                     currentOctave = data[channel - 1][selectedNote].octave;
                 }
@@ -1730,7 +1741,7 @@ function setupMusic() {
                     currentNote = null;
                     currentOctave = null;
                 } else {
-                    sharp = data[channel - 1][selectedNote].halfToneStepUp;
+                    sharp = data[channel - 1][selectedNote].sharp;
                     currentNote = data[channel - 1][selectedNote].sound;
                     currentOctave = data[channel - 1][selectedNote].octave;
                 }
@@ -1778,7 +1789,7 @@ function setupMusic() {
             style: 'margin-left:auto;margin-right:.5rem;width:3rem',
             class: 'audio-load-btn',
         },
-        [text('Load')]
+        [text('load')]
     );
 
     element.append(
@@ -1793,10 +1804,10 @@ function setupMusic() {
         const audio = parseAudio(dataOutEl.value.toLowerCase());
         length = audio.length;
         lengthInput.value = length.toString();
-        instruments[0] = audio.channel1Instrument;
-        instruments[1] = audio.channel2Instrument;
-        instruments[2] = audio.channel3Instrument;
-        instruments[3] = audio.channel4Instrument;
+        instruments[0] = audio.channel1instrument;
+        instruments[1] = audio.channel2instrument;
+        instruments[2] = audio.channel3instrument;
+        instruments[3] = audio.channel4instrument;
         channel = 1;
         instrumentSelector.value = instruments[channel - 1];
         selectedNote = 0;
@@ -1820,7 +1831,7 @@ function setupMusic() {
         if (data[0][0]) {
             currentOctave = data[0][0].octave;
             currentNote = data[0][0].sound;
-            sharp = data[0][0].halfToneStepUp;
+            sharp = data[0][0].sharp;
         }
         rerender();
         updateNote();
@@ -1832,7 +1843,7 @@ function setupMusic() {
             return (
                 sound.sound +
                 sound.octave.toString() +
-                (sound.halfToneStepUp ? '#' : ' ')
+                (sound.sharp ? '#' : ' ')
             );
     }
 
@@ -1861,19 +1872,19 @@ function setupEditor() {
     const element = document.getElementsByClassName('editor')[0];
     if (!element) return;
     element.addEventListener('mousedown', () => (lastSelected = 'editor'));
-    const compileBtn = textButton({}, [text('Compile')]);
-    const downloadBtn = textButton({}, [text('Download')]);
-    const saveBtn = textButton({}, [text('Save')]);
+    const compileBtn = textButton({}, [text('compile')]);
+    const downloadBtn = textButton({}, [text('download')]);
+    const saveBtn = textButton({}, [text('save')]);
     const saveText = h('h4', { style: 'margin-right: .25rem;color: #a3a3a3' }, [
-        text('Changes Saved'),
+        text('changes saved'),
     ]);
     const loadingText = h('h2', { style: 'font-family: var(--font)' }, [
-        text('Loading...'),
+        text('loading...'),
     ]);
     const editor = h('div', { class: 'meditor' }, [loadingText]);
     element.append(
         h('div', { class: 'row el-titlebar' }, [
-            h('h2', { style: 'margin-right: auto' }, [text('Code Editor')]),
+            h('h2', { style: 'margin-right: auto' }, [text('code editor')]),
             h('h4', { style: 'margin-right: auto' }, [text('game.ts')]),
             saveText,
             saveBtn,
@@ -1915,6 +1926,8 @@ function setupEditor() {
                 compiling = false;
             };
             downloadBtn.addEventListener('click', compileAndDownload);
+            monaco.languages.typescript.javascriptDefaults.setCompilerOptions({ lib: ['ES2015', 'Promise'], allowNonTsExtensions: true });
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({ lib: ['ES2015', 'Promise'], allowNonTsExtensions: true });
 
             const monacoEditor = monaco.editor.create(editor, {
                 language: 'typescript',
@@ -1925,7 +1938,7 @@ function setupEditor() {
             getCode = () => monacoEditor.getValue();
             let timeoutId = 0;
             function queueSave() {
-                saveText.textContent = 'Unsaved changes';
+                saveText.textContent = 'unsaved changes';
                 clearTimeout(timeoutId);
                 setTimeout(saveBtnEvent, 5000);
             }
@@ -1936,9 +1949,9 @@ function setupEditor() {
                 saveBtnEvent();
             });
             const saveBtnEvent = async () => {
-                saveText.textContent = 'Saving...';
+                saveText.textContent = 'saving...';
                 localStorage.setItem('code', monacoEditor.getValue());
-                saveText.textContent = 'Changes Saved';
+                saveText.textContent = 'changes saved';
             };
             saveBtn.addEventListener('click', saveBtnEvent);
 
@@ -1957,32 +1970,31 @@ function setupEditor() {
                 run: compileAndPopup,
                 label: 'Compile Code',
             });
-
             let disposeMasks =
                 monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                    'type ValidMaskPath = never',
+                    'type validmaskpath = never',
                     'defaults-masks.d.ts'
                 ).dispose;
             let disposeAudios =
                 monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                    'type ValidAudioPath = never',
+                    'type validaudiopath = never',
                     'defaults-audios.d.ts'
                 ).dispose;
             let disposeImages =
                 monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                    'type ValidImagePath = never',
+                    'type validimagepath = never',
                     'defaults-images.d.ts'
                 ).dispose;
             let disposeTexts =
                 monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                    'type ValidStringPath = never',
+                    'type validstringpath = never',
                     'defaults-strings.d.ts'
                 ).dispose;
             updateMasks = function (masks) {
                 disposeMasks();
                 disposeMasks =
                     monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                        'type ValidMaskPath = ' +
+                        'type validmaskpath = ' +
                             (masks.length < 1
                                 ? 'never'
                                 : masks
@@ -1995,7 +2007,7 @@ function setupEditor() {
                 disposeAudios();
                 disposeAudios =
                     monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                        'type ValidAudioPath = ' +
+                        'type validaudiopath = ' +
                             (audios.length < 1
                                 ? 'never'
                                 : audios
@@ -2008,7 +2020,7 @@ function setupEditor() {
                 disposeImages();
                 disposeImages =
                     monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                        'type ValidImagePath = ' +
+                        'type validimagepath = ' +
                             (images.length < 1
                                 ? 'never'
                                 : images
@@ -2024,7 +2036,7 @@ function setupEditor() {
                 disposeTexts();
                 disposeTexts =
                     monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                        'type ValidStringPath = ' +
+                        'type validstringpath = ' +
                             (texts.length < 1
                                 ? 'never'
                                 : texts
@@ -2038,7 +2050,7 @@ function setupEditor() {
                 'globals.d.ts'
             );
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                'declare function getImage(path: ValidImagePath): Image;\ndeclare function getMask(path: ValidMaskPath): ImageMask;\ndeclare function getAudio(path: ValidAudioPath): Audio;\ndeclare function getString(path: ValidStringPath): string;',
+                'declare function getimage(path: validimagepath): image;\ndeclare function getmask(path: validmaskpath): imagemask;\ndeclare function getaudio(path: validaudiopath): audio;\ndeclare function getstring(path: validstringpath): string;',
                 'utils.d.ts'
             );
             editorPostInit();
@@ -2049,8 +2061,11 @@ function setupEditor() {
                 loadingText.replaceWith(
                     h('pre', {}, [
                         text(
-                            'Error while loading!\n' +
-                                (e?.stack || e?.message || e?.name || e)
+                            'error while loading!\n' +
+                                (
+                                    '' +
+                                    (e?.stack || e?.message || e?.name || e)
+                                ).toLowerCase()
                         ),
                     ])
                 );
@@ -2112,13 +2127,13 @@ function setupDataManager() {
     }
 
     const addImageBtn = textButton({ style: 'margin-left: auto' }, [
-        text('Add'),
+        text('add'),
     ]);
     element.append(
-        h('h2', {}, [text('Data Manager')]),
+        h('h2', {}, [text('data manager')]),
         h('div', { class: 'line', style: 'margin-top: 7px' }, []),
         h('div', { class: 'row' }, [
-            h('h3', { style: 'margin-top: 7px;' }, [text('Images')]),
+            h('h3', { style: 'margin-top: 7px;' }, [text('images')]),
             addImageBtn,
         ])
     );
@@ -2146,10 +2161,10 @@ function setupDataManager() {
         images[name] = data;
         sync();
         const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
-            text('Overwrite'),
+            text('overwrite'),
         ]);
-        const removeBtn = textButton({}, [text('Remove')]);
-        const loadBtn = textButton({}, [text('Load')]);
+        const removeBtn = textButton({}, [text('remove')]);
+        const loadBtn = textButton({}, [text('load')]);
         const el = h('div', { class: 'row' }, [
             h('h4', {}, [text(name)]),
             overwriteBtn,
@@ -2188,12 +2203,12 @@ function setupDataManager() {
     addImageBtn.addEventListener('click', () => addImage());
 
     const addMaskBtn = textButton({ style: 'margin-left: auto' }, [
-        text('Add'),
+        text('add'),
     ]);
     element.append(
         h('div', { class: 'line', style: 'margin-top: 7px' }, []),
         h('div', { class: 'row' }, [
-            h('h3', { style: 'margin-top: 7px;' }, [text('Masks')]),
+            h('h3', { style: 'margin-top: 7px;' }, [text('masks')]),
             addMaskBtn,
         ])
     );
@@ -2221,10 +2236,10 @@ function setupDataManager() {
         masks[name] = data;
         sync();
         const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
-            text('Overwrite'),
+            text('overwrite'),
         ]);
-        const removeBtn = textButton({}, [text('Remove')]);
-        const loadBtn = textButton({}, [text('Load')]);
+        const removeBtn = textButton({}, [text('remove')]);
+        const loadBtn = textButton({}, [text('load')]);
         const el = h('div', { class: 'row' }, [
             h('h4', {}, [text(name)]),
             overwriteBtn,
@@ -2263,13 +2278,13 @@ function setupDataManager() {
     addMaskBtn.addEventListener('click', () => generateMaskBtn());
 
     const addAudioBtn = textButton({ style: 'margin-left: auto' }, [
-        text('Add'),
+        text('add'),
     ]);
     const audioElement = h('div', {}, []);
     element.append(
         h('div', { class: 'line', style: 'margin-top: 7px' }, []),
         h('div', { class: 'row' }, [
-            h('h3', { style: 'margin-top: 7px;' }, [text('Audio')]),
+            h('h3', { style: 'margin-top: 7px;' }, [text('audio')]),
             addAudioBtn,
         ]),
         audioElement
@@ -2295,10 +2310,10 @@ function setupDataManager() {
         audios[name] = data;
         sync();
         const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
-            text('Overwrite'),
+            text('overwrite'),
         ]);
-        const removeBtn = textButton({}, [text('Remove')]);
-        const loadBtn = textButton({}, [text('Load')]);
+        const removeBtn = textButton({}, [text('remove')]);
+        const loadBtn = textButton({}, [text('load')]);
         const el = h('div', { class: 'row' }, [
             h('h4', {}, [text(name)]),
             overwriteBtn,
@@ -2337,13 +2352,13 @@ function setupDataManager() {
     addAudioBtn.addEventListener('click', () => generateAudioBtn());
 
     const addTextBtn = textButton({ style: 'margin-left: auto' }, [
-        text('Add'),
+        text('add'),
     ]);
     const textElement = h('div', {}, []);
     element.append(
         h('div', { class: 'line', style: 'margin-top: 7px' }, []),
         h('div', { class: 'row' }, [
-            h('h3', { style: 'margin-top: 3px' }, [text('Strings')]),
+            h('h3', { style: 'margin-top: 3px' }, [text('strings')]),
             addTextBtn,
         ]),
         textElement
@@ -2356,10 +2371,10 @@ function setupDataManager() {
         texts[name] = data;
         sync();
         const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
-            text('Overwrite'),
+            text('overwrite'),
         ]);
-        const peekBtn = textButton({}, [text('Peek')]);
-        const removeBtn = textButton({}, [text('Remove')]);
+        const peekBtn = textButton({}, [text('peek')]);
+        const removeBtn = textButton({}, [text('remove')]);
         const el = h('div', { class: 'row' }, [
             h('h4', {}, [text(name)]),
             overwriteBtn,
@@ -2450,14 +2465,38 @@ function setupMenu() {
     }
     requestAnimationFrame(render);
 }
+function setupUtils() {
+    const element = document.getElementsByClassName('utils')[0];
+    if (!element) return;
+    const textarea = h(
+        'textarea',
+        { style: 'flex-grow: 1;height: 20vh' },
+        []
+    ) as HTMLTextAreaElement;
+    const submit = textButton({}, [text('process')]);
+    element.append(row(h('h3', {}, [text('text to image')]), submit), textarea);
+    submit.addEventListener('click', () => {
+        const text = textarea.value;
+        const width = calculateWidth(text);
+        const height = text.split('\n').length * 6;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.imageSmoothingEnabled = false;
+        customWriteText(text, ctx, 0, 0, Infinity);
+        openImagePopup(canvas.toDataURL());
+    });
+}
 window.addEventListener('load', () => {
     setupDrawing();
     setupMasking();
     setupMusic();
-
     setupDataManager();
     setupEditor();
     setupMenu();
+    setupUtils();
     document.body
         .getElementsByClassName('keybinds')[0]
         ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));

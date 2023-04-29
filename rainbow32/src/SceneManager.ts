@@ -1,84 +1,80 @@
 import { debugData, isCollectingDebugData } from '.';
-import { GameObject } from './gameObject';
+import { gameobject } from './gameObject';
 import { removeParticles } from './particleSystem';
 
-export interface UserScene<T> {
-    beforeInit(scene: Scene<T>): T;
-    afterInit?(config: T, scene: Scene<T>): void;
-    beforeUpdate?(config: T, scene: Scene<T>, dt: number): void;
-    afterUpdate?(config: T, scene: Scene<T>, dt: number): void;
-    beforeRemove?(config: T, scene: Scene<T>): void;
-    afterRemove?(config: T, scene: Scene<T>): void;
-    gameObjects: GameObject[];
+export interface userscene<t> {
+    beforeinit(scene: Scene<t>): t;
+    afterinit?(config: t, scene: Scene<t>): void;
+    beforeupdate?(config: t, scene: Scene<t>, dt: number): void;
+    afterupdate?(config: t, scene: Scene<t>, dt: number): void;
+    beforeremove?(config: t, scene: Scene<t>): void;
+    afterremove?(config: t, scene: Scene<t>): void;
+    objects: gameobject[];
     name: string;
 }
 
 export class Scene<T extends Record<string, any>> {
-    private uScene: UserScene<T>;
-    objects: GameObject[] = [];
+    private uScene: userscene<T>;
+    objects: gameobject[] = [];
     readonly name: string;
     private config: T;
 
-    constructor(scene: UserScene<T>) {
+    constructor(scene: userscene<T>) {
         this.uScene = scene;
         this.name = scene.name;
         this.config = {} as any;
     }
 
     init() {
-        this.objects = [...this.uScene.gameObjects];
-        this.config = this.uScene.beforeInit(this);
+        this.objects = [...this.uScene.objects];
+        this.config = this.uScene.beforeinit(this);
         for (let i = 0; i < this.objects.length; ++i) this.objects[i].init();
-        this.uScene.afterInit?.(this.config, this);
+        this.uScene.afterinit?.(this.config, this);
     }
 
     remove() {
-        this.uScene.beforeRemove?.(this.config, this);
+        this.uScene.beforeremove?.(this.config, this);
         for (let i = 0; i < this.objects.length; ++i) this.objects[i].remove();
         this.objects = [];
-        this.uScene.afterRemove?.(this.config, this);
+        this.uScene.afterremove?.(this.config, this);
         this.config = {} as any;
     }
 
     update(dt: number) {
-        this.uScene.beforeUpdate?.(this.config, this, dt);
+        this.uScene.beforeupdate?.(this.config, this, dt);
         for (let i = 0; i < this.objects.length; ++i) {
-            if (SceneManager.getScene() !== this) break;
+            if (SceneManager.getscene() !== this) break;
             this.objects[i].render(dt);
         }
-        if (SceneManager.getScene() !== this) return;
-        this.uScene.afterUpdate?.(this.config, this, dt);
+        if (SceneManager.getscene() !== this) return;
+        this.uScene.afterupdate?.(this.config, this, dt);
     }
 
-    addObject(obj: GameObject) {
-        this.objects.push(obj);
+    addobjects(...obj: gameobject[]) {
+        this.objects.push(...obj);
     }
 
-    objectAmount(): number {
-        return this.objects.length;
-    }
-
-    getObjectByName(name: string): GameObject | undefined {
+    getobjectbyname(name: string): gameobject | undefined {
         return this.objects.find((el) => el.name === name);
     }
 
-    getObjectsByName(name: string): GameObject[] {
+    getobjectsbyname(name: string): gameobject[] {
         return this.objects.filter((el) => el.name === name);
     }
 
-    removeObject(object: GameObject) {
+    removeobject(object: gameobject) {
         this.objects = this.objects.filter((el) => el !== object);
     }
 
-    removeObjects(...objects: GameObject[]) {
+    removeobjects(...objects: gameobject[]) {
         this.objects = this.objects.filter((el) => !objects.includes(el));
     }
 
-    removeObjectByName(name: string) {
+    removeobjectsbyname(name: string) {
         this.objects = this.objects.filter((el) => el.name !== name);
     }
 
-    removeObjectsByName(...names: string[]) {
+    removeobjectsbynames(...names: string[]) {
         this.objects = this.objects.filter((el) => !names.includes(el.name));
     }
 }
@@ -87,16 +83,16 @@ let scenes: Scene<any>[] = [];
 let currentlySelected = 0;
 
 export const SceneManager = {
-    setScenes(newScenes: Scene<any>[], defaultSelected?: number) {
+    setscenes(newScenes: Scene<any>[], defaultSelected?: number) {
         scenes[currentlySelected]?.remove();
         scenes = newScenes;
         currentlySelected = defaultSelected || 0;
         scenes[currentlySelected]?.init();
     },
-    addScene(scene: Scene<any>) {
+    addscene(scene: Scene<any>) {
         scenes.push(scene);
     },
-    changeScene(scene: string | number) {
+    changescene(scene: string | number) {
         if (typeof scene === 'number') {
             scenes[currentlySelected]?.remove();
             currentlySelected = scene;
@@ -126,9 +122,9 @@ export const SceneManager = {
             ? scenes[currentlySelected].name
             : 'None';
         debugData['#Game Objects'] =
-            scenes[currentlySelected]?.objectAmount().toString() || '0';
+            scenes[currentlySelected]?.objects.length.toString() || '0';
     },
-    getScene<T>(): Scene<T> | undefined {
+    getscene<T>(): Scene<T> | undefined {
         return scenes[currentlySelected];
     },
 };

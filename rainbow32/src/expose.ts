@@ -3,10 +3,10 @@ import { BoxCollider } from './components/BoxCollisions';
 import _default from './fonts/default';
 import default_monospace from './fonts/default_monospace';
 import legacy from './fonts/legacy';
-import { createComponent, GameObject } from './gameObject';
+import { createComponent, gameobject } from './gameObject';
 import * as imageUtils from './imageUtils';
 import * as audioUtils from './audioUtils';
-import { buttons, HEIGHT, isPressed, memory, stopGame, WIDTH } from './index';
+import { buttons, HEIGHT, memory, stopGame, WIDTH } from './index';
 import { distance, lerp } from './math';
 import { readFromFile, storeToFile } from './saveFile';
 import { Scene, SceneManager } from './SceneManager';
@@ -22,52 +22,108 @@ import {
     writeText,
 } from './text';
 import { addParticle, removeParticle, removeParticles } from './particleSystem';
+import { removeEntry, resetEntries, setEntry } from './pausemenu';
 
 function expose(name: string, variable: any) {
     (globalThis as any)[name] = variable;
 }
 
 export function exposeToWorld() {
+    // text
     const fonts = {
         default: _default,
         default_monospace,
         legacy,
     };
-
     expose('fonts', fonts);
-    expose('imageUtils', imageUtils);
+    expose('writetext', writeText);
+    expose('currenttextmasks', currentTextMasks);
+    expose('addcharmap', addCharacterMask);
+    expose('applycharmap', applyCharacterMap);
+    expose('clearcharmap', clearCharacterMap);
+    expose('calculatebounds', calculateBounds);
+    expose('calculatewidth', calculateWidth);
+
+    // utils
     expose(
-        'nextFrame',
+        'nextframe',
         () => new Promise<void>((r) => requestAnimationFrame(() => r()))
     );
-    expose('ImageRenderer', ImageRenderer);
-    expose('createComponent', createComponent);
-    expose('GameObject', GameObject);
+    expose('download', download);
+    expose('isontimeout', isOnTimeout);
+    expose('timeout', timeout);
+
+    // default components
+    expose('imagerenderer', ImageRenderer);
+    expose('boxcollider', BoxCollider);
+
+    // gameobject
+    expose('createcomponent', createComponent);
+    expose('gameobject', gameobject);
+
+    // scene
+    expose('scene', Scene);
+    expose('scenemanager', SceneManager);
+
+    // general-purpose
     expose('memory', memory);
-    expose('isPressed', isPressed);
     expose('buttons', buttons);
-    expose('WIDTH', WIDTH);
-    expose('HEIGHT', HEIGHT);
-    expose('stopGame', stopGame);
+    expose('stopgame', stopGame);
+    expose('width', WIDTH);
+    expose('height', HEIGHT);
+
+    // math
     expose('distance', distance);
     expose('lerp', lerp);
-    expose('storeToFile', storeToFile);
-    expose('readFromFile', readFromFile);
-    expose('Scene', Scene);
-    expose('SceneManager', SceneManager);
-    expose('writeText', writeText);
-    expose('currentTextMasks', currentTextMasks);
-    expose('addCharacterMask', addCharacterMask);
-    expose('applyCharacterMap', applyCharacterMap);
-    expose('clearCharacterMap', clearCharacterMap);
-    expose('download', download);
-    expose('isOnTimeout', isOnTimeout);
-    expose('timeout', timeout);
-    expose('audioUtils', audioUtils);
-    expose('calculateBounds', calculateBounds);
-    expose('calculateWidth', calculateWidth);
-    expose('addParticle', addParticle);
-    expose('removeParticle', removeParticle);
-    expose('removeParticles', removeParticles);
-    expose('BoxCollider', BoxCollider);
+
+    // savestates
+    expose('storetofile', storeToFile);
+    expose('readfromfile', readFromFile);
+
+    // particle system
+    expose('addparticle', addParticle);
+    expose('removeparticle', removeParticle);
+    expose('removeparticles', removeParticles);
+
+    // menu
+    expose('resetentries', resetEntries);
+    expose('setentry', setEntry);
+    expose('removentry', removeEntry);
+
+    // image
+    expose('parseImage', imageUtils.parseImage);
+    expose('applyImageMask', imageUtils.applyImageMask);
+    expose('applyImageMaskModifyImage', imageUtils.applyImageMaskModifyImage);
+    expose('circle', imageUtils.circle);
+    expose('defaultPalette', imageUtils.defaultPalette);
+    expose('getColor', imageUtils.getColor);
+    expose('getCurrentPalette', imageUtils.getCurrentPalette);
+    expose('isValidColor', imageUtils.isValidColor);
+    expose('parseMask', imageUtils.parseMask);
+    expose('putImage', imageUtils.putImage);
+    expose('putImageRaw', imageUtils.putImageRaw);
+    expose('setCurrentPalette', imageUtils.setCurrentPalette);
+    expose('square', imageUtils.square);
+    expose('stringifyImage', imageUtils.stringifyImage);
+    expose('stringifyMask', imageUtils.stringifyMask);
+    expose('serializeImage', imageUtils.serializeImage);
+    expose('unserializeImage', imageUtils.unserializeImage);
+    expose('imgToPng', imageUtils.imgToPng);
+    expose('setOffset', imageUtils.setOffset);
+    expose('setPixel', imageUtils.setPixel);
+    expose('cls', imageUtils.cls);
+
+    // audio
+    expose('setVolume', audioUtils.setVolume);
+    expose('contextState', audioUtils.contextState);
+    expose('playAudio', audioUtils.playAudio);
+    expose('playSound', audioUtils.playSound);
+    expose('getFrequency', audioUtils.getFrequency);
+    expose('unserializeAudio', audioUtils.unserializeAudio);
+    expose('serializeAudio', audioUtils.serializeAudio);
+    expose('getSound', audioUtils.getSound);
+    expose('parseAudio', audioUtils.parseAudio);
+    expose('validNotes', audioUtils.validNotes);
+    expose('validInstruments', audioUtils.validInstruments);
+    expose('getVolume', audioUtils.getVolume);
 }

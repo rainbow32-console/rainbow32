@@ -2,9 +2,13 @@
     font-family: pixeloid;
     src: url(./pixeloid.ttf);
 }
+@font-face {
+    font-family: rainbow32;
+    src: url(./rainbow32-font.ttf);
+}
 
 :root {
-    --font: pixeloid, monospace;
+    --font: rainbow32, pixeloid, monospace;
 }
 
 * {

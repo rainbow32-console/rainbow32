@@ -1,13 +1,14 @@
 import charmap from './charmap';
 import {
     applyImageMask,
-    ColorPalette,
     ImageMask,
     parseMask,
     putImage,
     putImageRaw,
     square,
 } from './imageUtils';
+
+const unknownCharacter = parseMask('4:5:10010110110111111101');
 
 export const currentTextMasks = { ...charmap };
 
@@ -63,7 +64,7 @@ export function calculateBounds(
             x += spaceWidth;
             continue;
         }
-        const mask = currentTextMasks[text[i].toLowerCase()];
+        const mask = currentTextMasks[text[i]] || unknownCharacter;
         if (!mask) {
             lineLength += 6;
             x += 6;
@@ -92,11 +93,7 @@ export function calculateWidth(text: string, spaceWidth?: number): number {
             lineLength += spaceWidth;
             continue;
         }
-        const mask = currentTextMasks[text[i].toLowerCase()];
-        if (!mask) {
-            lineLength += 6;
-            continue;
-        }
+        const mask = currentTextMasks[text[i]] || unknownCharacter;
         lineLength += mask.width + 1;
     }
 
@@ -163,7 +160,8 @@ export function writeText(
     let lineLength = 0;
 
     for (let i = 0; i < text.length; ++i) {
-        if (x > maxWidth || text[i] === '\n') {
+        const mask = currentTextMasks[text[i]] || unknownCharacter;
+        if (x + mask.width > maxWidth || text[i] === '\n') {
             lines.push({ y, start: origX, end: origX + lineLength - 1 });
             x = origX;
             if (text[i] === '\n' && linePadLeft[++line]) x += linePadLeft[line];
@@ -179,16 +177,6 @@ export function writeText(
         if (text[i] === ' ') {
             lineLength += spaceWidth;
             x += spaceWidth;
-            continue;
-        }
-        const mask = currentTextMasks[text[i].toLowerCase()];
-        if (!mask && bg) {
-            putImageRaw(x, y, square(6, 5, background || 0));
-        }
-        if (!mask) {
-            lineLength += 6;
-            x += 6;
-            console.log('Text: No mask found for "%s"', text[i]);
             continue;
         }
         const image = applyImageMask(images[mask.width - 1], mask);

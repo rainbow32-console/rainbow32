@@ -1,0 +1,49 @@
+{
+	"$baseURI": "https://yal.cc/r/20/pixelfont/",
+	"$version": "1.0",
+	"in-glyphs": [
+		"0123456789",
+		"abcdefghij",
+		"klmnopqrst",
+		"uvwxyz´`^[",
+		"]()\\/<>-*+",
+		"π:=.!?{}#\"",
+		"%';&$@←→↑↓",
+		"√✕▶▲▼◀,HSF",
+		"CBNPLRUDWX",
+		"GVZKAOMJQI",
+		"YE"
+	],
+	"glyph-color": "auto",
+	"in-kerning": [
+		""
+	],
+	"glyph-width": 6,
+	"glyph-height": 7,
+	"glyph-ofs-x": 1,
+	"glyph-ofs-y": 1,
+	"glyph-sep-x": 1,
+	"glyph-sep-y": 1,
+	"glyph-base-x": 0,
+	"glyph-baseline": 6,
+	"glyph-spacing": 1,
+	"font-is-mono": false,
+	"font-em-square": 576,
+	"font-line-gap": 0,
+	"font-ascend": 640,
+	"font-descend": -128,
+	"font-px-size": 96,
+	"font-name": "Rainbow32",
+	"font-author": "Fishi",
+	"font-copy": "(c) Fishi 2023",
+	"font-version": "Version 1.0",
+	"font-desc": "Font for the rainbow32 console",
+	"font-license": "MIT",
+	"font-license-url": "",
+	"font-sample-text": "Hello!",
+	"font-preview-text": [
+		"5550HE QUICK BROWN FOX JUMPS OVER A LAZY DOG.",
+		"the quick brown fox jumps over a lazy dog.",
+		"0123456789"
+	]
+}
