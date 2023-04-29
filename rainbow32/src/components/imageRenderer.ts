@@ -1,10 +1,10 @@
-import { Component, GameObject } from '../gameObject';
+import { component, gameobject } from '../gameObject';
 import { applyImageMask, putImage } from '../imageUtils';
 
-class imageRenderer implements Component {
-    readonly name = 'ImageRenderer';
+class imageRenderer implements component {
+    readonly name = 'imagerenderer';
     init() {}
-    update(cfg: void, dt: number, gameObject: GameObject) {
+    update(cfg: void, dt: number, gameObject: gameobject) {
         if (gameObject.image.width < 1 || gameObject.image.height < 1) return;
         let image = gameObject.image;
         if (

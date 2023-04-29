@@ -1,6 +1,11 @@
 import { frequencyMap } from './frequencyMap';
 import { sleep } from './utils';
 
+export let volume = 100;
+
+export function getVolume() {
+    return volume;
+}
 export type gfxInstrument = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type Instrument =
     | 'square-wave'
@@ -15,17 +20,17 @@ export interface Audio {
     channel2: Uint8Array;
     channel3: Uint8Array;
     channel4: Uint8Array;
-    channel1Instrument: Instrument;
-    channel2Instrument: Instrument;
-    channel3Instrument: Instrument;
-    channel4Instrument: Instrument;
+    channel1instrument: Instrument;
+    channel2instrument: Instrument;
+    channel3instrument: Instrument;
+    channel4instrument: Instrument;
     length: number;
 }
 
 export interface Sound {
     octave: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
     sound: 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
-    halfToneStepUp: boolean;
+    sharp: boolean;
 }
 
 export const validNotes = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
@@ -60,7 +65,7 @@ function parseSound(sound: string): number {
     return soundToUint8({
         sound: sound[0] as 'a',
         octave: octave as 0,
-        halfToneStepUp: sound[2] === '#',
+        sharp: sound[2] === '#',
     });
 }
 
@@ -188,10 +193,10 @@ export function parseAudio(text: string): Audio {
         channel2,
         channel3,
         channel4,
-        channel1Instrument: instruments[0],
-        channel2Instrument: instruments[1],
-        channel3Instrument: instruments[2],
-        channel4Instrument: instruments[3],
+        channel1instrument: instruments[0],
+        channel2instrument: instruments[1],
+        channel3instrument: instruments[2],
+        channel4instrument: instruments[3],
     };
 }
 
@@ -208,7 +213,7 @@ export function getSound(sound: number): Sound | undefined {
     if (octave < 0 || octave > 8) return;
 
     return {
-        halfToneStepUp: halfTone,
+        sharp: halfTone,
         octave: octave as Sound['octave'],
         sound: String.fromCharCode(
             97 /*'a' char-code*/ + identifier
@@ -220,7 +225,7 @@ export function soundToUint8(sound: Sound): number {
     return (
         ((sound.sound.charCodeAt(0) - 97) /*'a' char code*/ << 5) |
         ((sound.octave + 1) << 1) |
-        (sound.halfToneStepUp ? 1 : 0)
+        (sound.sharp ? 1 : 0)
     );
 }
 
@@ -231,11 +236,11 @@ export function serializeAudio(audio: Audio): Uint8Array {
 
     arr[0] = audio.length;
     arr[1] =
-        (validInstruments.indexOf(audio.channel1Instrument) << 4) |
-        validInstruments.indexOf(audio.channel2Instrument);
+        (validInstruments.indexOf(audio.channel1instrument) << 4) |
+        validInstruments.indexOf(audio.channel2instrument);
     arr[2] =
-        (validInstruments.indexOf(audio.channel3Instrument) << 4) |
-        validInstruments.indexOf(audio.channel4Instrument);
+        (validInstruments.indexOf(audio.channel3instrument) << 4) |
+        validInstruments.indexOf(audio.channel4instrument);
 
     for (let i = 0; i < audio.length; ++i) {
         arr[i + 3] = audio.channel1[i];
@@ -258,10 +263,10 @@ export function unserializeAudio(arr: Uint8Array): Audio {
 
     return {
         length,
-        channel1Instrument: validInstruments[(arr[1] & 0xf) >> 4],
-        channel2Instrument: validInstruments[arr[1] & 0x0f],
-        channel3Instrument: validInstruments[(arr[1] & 0xf) >> 4],
-        channel4Instrument: validInstruments[arr[1] & 0x0f],
+        channel1instrument: validInstruments[(arr[1] & 0xf) >> 4],
+        channel2instrument: validInstruments[arr[1] & 0x0f],
+        channel3instrument: validInstruments[(arr[1] & 0xf) >> 4],
+        channel4instrument: validInstruments[arr[1] & 0x0f],
         channel1: arr.subarray(length + 3, length * 2 + 2),
         channel2: arr.subarray(length * 2 + 3, length * 3 + 2),
         channel3: arr.subarray(length * 3 + 3, length * 4 + 2),
@@ -310,7 +315,7 @@ function playTune(
         frequency: freq,
     });
     const gainNode = ctx.createGain();
-    gainNode.gain.value = vol;
+    gainNode.gain.value = vol * (volume * 0.01);
     gainNode.connect(ctx.destination);
     node.connect(gainNode);
     node.start(0);
@@ -352,7 +357,7 @@ function playNoise(vol: number, freq: number, time: number): Promise<void> {
     });
 
     const gainNode = ctx.createGain();
-    gainNode.gain.value = vol;
+    gainNode.gain.value = vol * (volume * 0.01);
     gainNode.connect(ctx.destination);
     // Connect our graph
     noise.connect(bandpass).connect(gainNode);
@@ -380,7 +385,7 @@ export function getInstrumentSoundFunction(
 
 export function getFrequency(sound: Sound): number {
     return frequencyMap[sound.octave][
-        sound.sound.toUpperCase() + (sound.halfToneStepUp ? '#' : '')
+        sound.sound.toUpperCase() + (sound.sharp ? '#' : '')
     ];
 }
 
@@ -402,10 +407,10 @@ export async function playAudio(
     timePerNote: number,
     vol: number
 ): Promise<void> {
-    const audio1Fn = getInstrumentSoundFunction(audio.channel1Instrument);
-    const audio2Fn = getInstrumentSoundFunction(audio.channel2Instrument);
-    const audio3Fn = getInstrumentSoundFunction(audio.channel3Instrument);
-    const audio4Fn = getInstrumentSoundFunction(audio.channel4Instrument);
+    const audio1Fn = getInstrumentSoundFunction(audio.channel1instrument);
+    const audio2Fn = getInstrumentSoundFunction(audio.channel2instrument);
+    const audio3Fn = getInstrumentSoundFunction(audio.channel3instrument);
+    const audio4Fn = getInstrumentSoundFunction(audio.channel4instrument);
 
     for (let i = 0; i < audio.length; ++i) {
         const sound1 = getSound(audio.channel1[i]);
@@ -443,4 +448,10 @@ export function recreateContext() {
 
 export function contextState() {
     return ctx.state;
+}
+
+export function setVolume(_volume: number) {
+    if (_volume < 0) _volume = 0;
+    if (_volume > 100) _volume = 100;
+    volume = _volume;
 }

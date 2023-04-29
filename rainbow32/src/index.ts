@@ -1,4 +1,3 @@
-// import game from './game/game';
 import {
     contextState,
     loadMusic,
@@ -8,14 +7,20 @@ import {
 import { canvasFullScreen, isFocused, show } from './electron';
 import { exposeToWorld } from './expose';
 import {
+    cls,
     ColorPalette,
     getColor,
-    getCurrentPalette,
     isDirty,
     removeDirtyMark,
     setCurrentPalette,
 } from './imageUtils';
 import { removeParticles, updateParticles } from './particleSystem';
+import {
+    putOldImage,
+    renderPauseMenu,
+    resetEntries,
+    resetSelected,
+} from './pausemenu';
 import { Scene, SceneManager } from './SceneManager';
 import {
     putStartupImage,
@@ -205,17 +210,17 @@ let previous = Date.now();
 
 let pressedButtonsPreviously = new Uint8Array([0]);
 
-let stopNextRender = false;
+let unfocused = false;
 
 const renderTimes: number[] = [];
+let oldPaused = false;
 
 function render(dt: number) {
     try {
-        for (let i = 0; i < WIDTH * HEIGHT; ++i) memory[i + 1] = 0xff;
         const start = Date.now();
-        if (stopNextRender || !frame || !frame.isConnected || !done || paused)
-            return (stopNextRender = false);
-        if (!currentGame) return;
+        if (unfocused || !frame || !frame.isConnected || !done)
+            return (unfocused = false);
+
         callEvent('beforeRender', [ctx, dt - previous]);
 
         if (isCollectingDebugData) debugData['Update State'] = 'Buttons';
@@ -226,13 +231,19 @@ function render(dt: number) {
                     ? true
                     : false;
 
+        if (oldPaused !== paused && paused) resetSelected();
+        if (oldPaused !== paused && !paused) putOldImage();
+        oldPaused = paused;
         if (ctx && !isFocused()) {
-            removeDirtyMark();
-            if (isCollectingDebugData) debugData['Update State'] = 'Global';
-            currentGame.update?.(dt - previous);
-            if (isCollectingDebugData) debugData['Update State'] = 'Particles';
-            updateParticles(dt - previous);
-            SceneManager.update(dt - previous);
+            if (!paused && currentGame) {
+                if (isCollectingDebugData) debugData['Update State'] = 'Global';
+                currentGame.update?.(dt - previous);
+                if (isCollectingDebugData)
+                    debugData['Update State'] = 'Particles';
+                updateParticles(dt - previous);
+                SceneManager.update(dt - previous);
+            }
+            if (paused) renderPauseMenu();
             if (isCollectingDebugData) debugData['Update State'] = 'Screen';
             const buf = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
             if (isDirty) {
@@ -251,6 +262,7 @@ function render(dt: number) {
 
                 ctx.putImageData(new ImageData(buf, WIDTH, HEIGHT), 0, 0);
             }
+            removeDirtyMark();
         }
 
         previous = dt;
@@ -258,33 +270,34 @@ function render(dt: number) {
         renderTimes.push(Date.now() - start);
         if (Date.now() - start > 30)
             console.warn('[Violation] Screen Update took over 30 milliseconds');
-        requestAnimationFrame(render);
         callEvent('afterRender', [ctx, dt - previous]);
 
-        if (!isCollectingDebugData) return;
-        debugData['Update State'] = 'Idle';
-        debugData['Render (ms)'] = Date.now() - start + 'ms';
-        debugData['Buttons Down'] = '';
-        debugData['Buttons Pressed'] = '';
-        for (let i = 0; i < buttonIds.length; ++i) {
-            if (buttons[buttonIds[i]].press)
-                debugData['Buttons Pressed'] += buttonIds[i] + ' ';
-            if (buttons[buttonIds[i]].down)
-                debugData['Buttons Down'] += buttonIds[i] + ' ';
+        if (isCollectingDebugData) {
+            debugData['Update State'] = 'Idle';
+            debugData['Render (ms)'] = Date.now() - start + 'ms';
+            debugData['Buttons Down'] = '';
+            debugData['Buttons Pressed'] = '';
+            for (let i = 0; i < buttonIds.length; ++i) {
+                if (buttons[buttonIds[i]].press)
+                    debugData['Buttons Pressed'] += buttonIds[i] + ' ';
+                if (buttons[buttonIds[i]].down)
+                    debugData['Buttons Down'] += buttonIds[i] + ' ';
+            }
+            debugData['Buttons Down'] ||= 'None';
+            debugData['Buttons Pressed'] ||= 'None';
+            debugData['Mean Update Time'] =
+                (
+                    renderTimes.reduce((a, b) => a + b, 0) / renderTimes.length
+                ).toFixed(2) + 'ms';
+            debugData['Worst Update Time'] =
+                renderTimes.reduce((a, b) => (a > b ? a : b), 0) + 'ms';
         }
-        debugData['Buttons Down'] ||= 'None';
-        debugData['Buttons Pressed'] ||= 'None';
-        debugData['Mean Update Time'] =
-            (
-                renderTimes.reduce((a, b) => a + b, 0) / renderTimes.length
-            ).toFixed(2) + 'ms';
-        debugData['Worst Update Time'] =
-            renderTimes.reduce((a, b) => (a > b ? a : b), 0) + 'ms';
     } catch (e: any) {
         stopGame();
-        if (ctx) runErrorAnimation(ctx);
+        runErrorAnimation();
         console.error('Failed to render frame!\n╰─> %s', e?.stack || e);
     }
+    requestAnimationFrame(render);
 }
 
 let frame: HTMLElement | null = null;
@@ -317,7 +330,7 @@ export function makeBtn(key: Button): HTMLDivElement {
 
 export function makeTextBtn(text: string): HTMLDivElement {
     const div = document.createElement('div');
-    div.dataset.textContent = text;
+    div.dataset.textContent = text.toLowerCase();
     div.style.minWidth = '3rem';
     div.style.height = '25px';
     div.style.backgroundColor = '#171717';
@@ -350,10 +363,11 @@ export function getDebugString(): string {
     for (let i = 0; i < keys.length; ++i)
         if (debugData[keys[i]].length > 0)
             str += `${keys[i]}: ${debugData[keys[i]]}\n`;
-    return str;
+    return str.toLowerCase();
 }
 
 export async function unload() {
+    unfocused = true;
     unloadMusic();
     await stopGame();
     for (const fn of onUnload) fn();
@@ -401,6 +415,7 @@ let paused: boolean;
 
 function startRender(dt: number) {
     previous = dt;
+    unfocused = false;
     render(dt);
 }
 
@@ -418,13 +433,16 @@ export async function onLoad(
             'onLoad(...) was already called! call unload(...) first!'
         );
     done = true;
+    paused = false;
     if (!element) element = document.body;
     if (withControls === undefined) withControls = true;
     if (canvasFullScreen()) withControls = false;
     if (frame) frame.remove();
     frame = element;
 
-    const generated = generator?.(defaultElGenProps(frame, canvasFullScreen() || !withControls));
+    const generated = generator?.(
+        defaultElGenProps(frame, canvasFullScreen() || !withControls)
+    );
 
     const canvas = generated?.canvas
         ? generated.canvas
@@ -448,7 +466,8 @@ export async function onLoad(
     ctx.imageSmoothingEnabled = false;
 
     if (contextState() !== 'running') recreateContext();
-    const p = runStartupAnimation(ctx);
+    requestAnimationFrame(startRender);
+    const p = runStartupAnimation();
 
     function keyDown(ev: KeyboardEvent) {
         if (!frame || !frame.isConnected) return;
@@ -461,18 +480,16 @@ export async function onLoad(
                     now.getDay() + 1
                 }-${now.getHours()}-${now.getSeconds()}-${now.getMilliseconds()}.png`
             );
-        } else if (ev.key === ' ') {
-            paused = !paused;
-            if (!paused && currentGame) requestAnimationFrame(startRender);
-            else if (!paused) ctx?.clearRect(0, 0, WIDTH, HEIGHT);
-        }
+        } else if (ev.key === ' ') paused = !paused;
     }
     window.addEventListener('keydown', keyDown);
 
     function loseFocus() {
-        stopNextRender = true;
+        if (!done) return;
+        unfocused = true;
     }
     function gainFocus() {
+        if (!done) return;
         requestAnimationFrame(startRender);
     }
 
@@ -579,6 +596,7 @@ export async function onLoad(
     }
     if (isCollectingDebugData) debugData['Game State'] = 'Idle';
 
+    onUnload.push(unpause);
     return Promise.allSettled([p]);
 }
 
@@ -626,12 +644,15 @@ function callEvent(event: string, args: any[]) {
 export async function loadGame(game: GameFile) {
     if (!ctx) return;
     try {
+        resetEntries();
         await loadMusic();
         if (isCollectingDebugData) {
             debugData['Game State'] = 'Running';
             debugData['Game Name'] = game.name;
         }
         if (!frame || !frame.isConnected) return;
+        cls();
+        unpause();
         currentGame = game;
         ctx?.canvas.setAttribute(
             'style',
@@ -648,13 +669,12 @@ export async function loadGame(game: GameFile) {
         if (game.palette) setCurrentPalette(game.palette);
         ctx.clearRect(0, 0, WIDTH, HEIGHT);
         game?.init?.();
-        if (game.scenes) SceneManager.setScenes(game.scenes, game.defaultScene);
+        if (game.scenes) SceneManager.setscenes(game.scenes, game.defaultScene);
         callEvent('afterLoad', [game]);
-        requestAnimationFrame(startRender);
     } catch (e: any) {
         stopGame();
         console.error('Could not load Game!\n╰─> %s', e?.stack || e);
-        runErrorAnimation(ctx);
+        runErrorAnimation();
     }
 }
 
@@ -664,10 +684,11 @@ export function stopGame(): Promise<void> {
         debugData['Game State'] = 'Idle';
         debugData['Game Name'] = '';
     }
-    stopNextRender = true;
     if (!currentGame) return new Promise((res) => res());
-    currentGame.remove?.();
-    SceneManager.setScenes([]);
+    const _game = currentGame;
+    currentGame = null;
+    _game.remove?.();
+    SceneManager.setscenes([]);
     currentGame = null;
     if (ctx) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx?.canvas.setAttribute(
@@ -680,7 +701,8 @@ export function stopGame(): Promise<void> {
                     ''
                 ) || '')
     );
-    if (ctx) putStartupImage(ctx);
+    resetEntries();
+    if (ctx) putStartupImage();
     callEvent('afterStop', []);
     return new Promise((res) => requestAnimationFrame(res as any));
 }
@@ -713,7 +735,7 @@ export async function loadFromEvent(ev: InputEvent) {
     } catch (e: any) {
         stopGame();
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
-        if (ctx) runErrorAnimation(ctx);
+        runErrorAnimation();
     }
     delete (globalThis as any).__registeredGame;
 }
@@ -721,12 +743,14 @@ export async function loadFromEvent(ev: InputEvent) {
 (window as any).stopGame = stopGame;
 (window as any).loadGame = loadFromEvent;
 
+let lastContents: string = '';
+
 export async function loadGameByContents(contents: string | undefined | null) {
-    if (!frame || !frame.isConnected) return;
+    if (!frame || !frame.isConnected || !contents) return;
     await stopGame();
 
-    if (!contents || !ctx) return;
-    const p = runLoadAnimation(ctx);
+    lastContents = contents;
+    const p = runLoadAnimation();
     try {
         await (async function () {
             return await eval(contents);
@@ -738,13 +762,12 @@ export async function loadGameByContents(contents: string | undefined | null) {
         if (!game) throw new Error();
         delete (globalThis as any).__registeredGame;
         console.log('Loading Game %s', game?.name || 'no name specified', game);
-        stopNextRender = false;
         await Promise.allSettled([p]);
         loadGame(game as GameFile);
     } catch (e: any) {
         stopGame();
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
-        runErrorAnimation(ctx);
+        runErrorAnimation(e);
     }
     delete (globalThis as any).__registeredGame;
 }
@@ -800,3 +823,18 @@ export function defaultElGenProps(
         frame,
     };
 }
+
+export function unpause() {
+    paused = false;
+}
+export function resetCart() {
+    if (!lastContents) return;
+    unpause();
+
+    stopGame();
+    return loadGameByContents(lastContents);
+}
+window.addEventListener('beforeunload', () => {
+    stopGame();
+    return null;
+});
