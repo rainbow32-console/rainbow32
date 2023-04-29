@@ -2,15 +2,23 @@
     font-family: pixeloid;
     src: url(./pixeloid.ttf);
 }
+@font-face {
+    font-family: rainbow32;
+    src: url(./rainbow32-font.ttf);
+}
+@font-face {
+    font-family: rainbow32-no-special-chars;
+    src: url(./rainbow32-no-special-characters.ttf);
+}
 
 :root {
-    --font: pixeloid, monospace;
+    --font: 'rainbow32', 'pixeloid', monospace, codicon;
 }
 
 * {
     margin: 0;
     padding: 0;
-    font-family: var(--font);
+    font-family: var(--font) !important;
     user-select: none;
 }
 body {
@@ -23,16 +31,15 @@ body {
     padding: 10px;
     margin-top: 2rem;
 }
+body > div:not(.active):not(.ignore) {
+    display: none;
+}
 body > div:not(.ignore) {
     border: 1px solid white;
     padding: 7px;
-    display: none;
     min-width: calc(100vw - 34px);
     overflow: auto;
     height: calc(100vh - 2rem - 36px);
-}
-body > div:not(.ignore).active {
-    display: unset;
 }
 .text-button {
     height: 25px;
@@ -234,7 +241,12 @@ kbd {
 
 .meditor,
 .meditor * {
-    font-family: pixeloid, monospace;
+    font-family: 'rainbow32-no-special-chars', var(--font) !important;
+}
+
+.meditor .view-lines *,
+.meditor .suggest-widget * {
+    font-family: var(--font) !important;
 }
 
 body > div .line {
@@ -358,4 +370,8 @@ body > div .line {
 
 .game-popup canvas {
     margin: 0 !important;
+}
+.utils {
+    display: flex;
+    flex-direction: column;
 }
