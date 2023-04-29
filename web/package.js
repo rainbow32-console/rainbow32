@@ -26,7 +26,20 @@ f = f
                     `url(data:font/ttf;base64,${readFileSync(
                         join(__dirname, 'pixeloid.ttf')
                     ).toString('base64')})`
-                ) +
+                )
+                .replaceAll(
+                    'url(./pixeloid.ttf)',
+                    `url(data:font/ttf;base64,${readFileSync(
+                        join(__dirname, 'pixeloid.ttf')
+                    ).toString('base64')})`
+                )
+                .replaceAll(
+                    'url(./rainbow32-font.ttf)',
+                    `url(data:font/ttf;base64,${readFileSync(
+                        join(__dirname, 'rainbow32-font.ttf')
+                    ).toString('base64')})`
+                )
+                +
             '</style>'
     );
 writeFileSync(join(__dirname, 'packaged.html'), f);

@@ -218,7 +218,7 @@ window.addEventListener('load', () => {
     let previous = Date.now();
     function render(dt: number) {
         pre.textContent = getDebugString();
-        pre.textContent += 'FPS: ' + (1000 / (dt - previous)).toFixed(0);
+        pre.textContent += 'fps: ' + (1000 / (dt - previous)).toFixed(0);
         requestAnimationFrame(render);
         previous = dt;
     }
@@ -241,8 +241,11 @@ window.addEventListener('load', () => {
     }
 });
 
-registerEvent('afterLoad', (game) => (gameTitleH1.textContent = game.name));
-registerEvent('afterStop', () => (gameTitleH1.textContent = 'No game loaded!'));
+registerEvent(
+    'afterLoad',
+    (game) => (gameTitleH1.textContent = game.name.toLowerCase())
+);
+registerEvent('afterStop', () => (gameTitleH1.textContent = 'no game loaded!'));
 
 document.addEventListener(
     'keydown',
