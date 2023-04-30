@@ -6,7 +6,7 @@ import legacy from './fonts/legacy';
 import { createComponent, gameobject } from './gameObject';
 import * as imageUtils from './imageUtils';
 import * as audioUtils from './audioUtils';
-import { buttons, HEIGHT, memory, stopGame, WIDTH } from './index';
+import { buttons, HEIGHT, memory, shouldBreak, stopGame, WIDTH } from './index';
 import { distance, lerp } from './math';
 import { readFromFile, storeToFile } from './saveFile';
 import { Scene, SceneManager } from './SceneManager';
@@ -25,7 +25,13 @@ import { addParticle, removeParticle, removeParticles } from './particleSystem';
 import { removeEntry, resetEntries, setEntry } from './pausemenu';
 
 function expose(name: string, variable: any) {
-    (globalThis as any)[name] = variable;
+    Object.defineProperty(globalThis, name, {
+        get() {
+            if (shouldBreak())
+                throw new Error('Game is not currently running!');
+            return variable;
+        },
+    });
 }
 
 export function exposeToWorld() {

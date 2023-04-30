@@ -568,10 +568,10 @@ export async function onLoad(
 
         const start = generated?.buttons?.start
             ? generated.buttons.start
-            : makeTextBtn('Start');
+            : makeTextBtn('start');
         const reset = generated?.buttons?.stop
             ? generated.buttons.stop
-            : makeTextBtn('Reset');
+            : makeTextBtn('reset');
 
         if (!generated?.buttons?.start)
             start.classList.add('__rainbow32_button_start');
@@ -714,9 +714,11 @@ export async function loadFromEvent(ev: InputEvent) {
 
         const el = ev.target as HTMLInputElement;
         if (!el.files || !el.files.item(0)) return;
+        const f = el.files.item(0);
+        if (!f) return;
         let text = '';
-        const buf = new Uint8Array(await el.files.item(0)!.arrayBuffer());
-        if (el.files.item(0)!.name.endsWith('.png')) {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        if (f.name.endsWith('.png')) {
             let offset =
                 buf[buf.length - 1] |
                 (buf[buf.length - 2] << 8) |
@@ -737,6 +739,7 @@ export async function loadFromEvent(ev: InputEvent) {
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
         runErrorAnimation();
     }
+    (ev.target as HTMLInputElement).value = '';
     delete (globalThis as any).__registeredGame;
 }
 
@@ -745,6 +748,8 @@ export async function loadFromEvent(ev: InputEvent) {
 
 let lastContents: string = '';
 
+let isLoadingGame = false;
+
 export async function loadGameByContents(contents: string | undefined | null) {
     if (!frame || !frame.isConnected || !contents) return;
     await stopGame();
@@ -752,6 +757,7 @@ export async function loadGameByContents(contents: string | undefined | null) {
     lastContents = contents;
     const p = runLoadAnimation();
     try {
+        isLoadingGame = true;
         await (async function () {
             return await eval(contents);
         })();
@@ -763,13 +769,19 @@ export async function loadGameByContents(contents: string | undefined | null) {
         delete (globalThis as any).__registeredGame;
         console.log('Loading Game %s', game?.name || 'no name specified', game);
         await Promise.allSettled([p]);
-        loadGame(game as GameFile);
+        await loadGame(game as GameFile);
     } catch (e: any) {
         stopGame();
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
         runErrorAnimation(e);
     }
     delete (globalThis as any).__registeredGame;
+    isLoadingGame = false;
+}
+
+export function shouldBreak() {
+    if (isLoadingGame) return false;
+    return !currentGame || !frame || !frame.isConnected || !done;
 }
 
 export function getCurrentGameName(): string {

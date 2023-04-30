@@ -162,7 +162,7 @@ function genEls(
     fileInput.type = 'file';
     fileInput.style.display = 'none';
 
-    const startBtn = makeTextBtn('Start');
+    const startBtn = makeTextBtn('start');
     startBtn.classList.add(opt.classes.textButton, opt.classes.buttons.start);
     startBtn.addEventListener(
         'click',
@@ -176,7 +176,7 @@ function genEls(
         { capture: true }
     );
 
-    const stopBtn = makeTextBtn('Stop');
+    const stopBtn = makeTextBtn('reset');
     stopBtn.classList.add(opt.classes.textButton, opt.classes.buttons.stop);
 
     content.append(gameTitle, buttons, fileInput, startBtn, stopBtn);
