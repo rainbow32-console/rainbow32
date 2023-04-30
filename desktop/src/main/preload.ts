@@ -38,6 +38,12 @@ const electronHandler = {
     },
     getCartridges(): Promise<string[]> {
       return ipcRenderer.invoke('get-cartridges');
+    },
+    toggleFullscreen() {
+      ipcRenderer.send('toggle-fullscreen')
+    },
+    loadProgram(program: 'sdk'|'rainbow32') {
+      ipcRenderer.send('load-program', program);
     }
   },
 };

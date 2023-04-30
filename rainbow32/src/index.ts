@@ -13,6 +13,7 @@ import {
     isDirty,
     removeDirtyMark,
     setCurrentPalette,
+    setOffset,
 } from './imageUtils';
 import { removeParticles, updateParticles } from './particleSystem';
 import {
@@ -643,6 +644,7 @@ function callEvent(event: string, args: any[]) {
 
 export async function loadGame(game: GameFile) {
     if (!ctx) return;
+    setOffset(0, 0);
     try {
         resetEntries();
         await loadMusic();

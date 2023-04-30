@@ -4,7 +4,7 @@ export function getDevices() {
   const output = spawnSync('lsblk', [
     '-o',
     'KNAME,TYPE,LABEL',
-  ]).stdout.toString();
+  ]).stdout?.toString() || '';
 
   const devices: { id: string; name: string }[] = [];
 

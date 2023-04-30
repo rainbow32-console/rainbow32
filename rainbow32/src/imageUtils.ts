@@ -324,12 +324,12 @@ export function setOffset(x: number, y: number) {
 
 export function putImage(x: number, y: number, image: Image) {
     isDirty = true;
-    x = Math.floor(x+offsetX);
-    y = Math.floor(y+offsetY);
+    x = Math.floor(x + offsetX);
+    y = Math.floor(y + offsetY);
     for (let h = 0; h < image.height; ++h) {
-        if (y + h >= HEIGHT) break;
+        if (y + h >= HEIGHT || y + h < 0) break;
         for (let w = 0; w < image.width; ++w) {
-            if (x + w >= WIDTH) break;
+            if (x + w >= WIDTH || x + w < 0) break;
             const off = (h + y) * WIDTH + x + w;
             if (image.buf[h * image.width + w] === 0xff) continue;
             memory[off + 1] = image.buf[h * image.width + w];
@@ -337,11 +337,11 @@ export function putImage(x: number, y: number, image: Image) {
     }
 }
 
-export function setPixel(x: number, y: number, color: number|string) {
+export function setPixel(x: number, y: number, color: number | string) {
     if (typeof color === 'string') color = parseInt(color, 15);
     if (!isValidColor(color)) throw new Error('Color is invalid!');
-    x = Math.floor(x+offsetX);
-    y = Math.floor(y+offsetY);
+    x = Math.floor(x + offsetX);
+    y = Math.floor(y + offsetY);
     if (x >= WIDTH) return;
     if (y >= HEIGHT) return;
     if (x < 0) return;
@@ -351,12 +351,12 @@ export function setPixel(x: number, y: number, color: number|string) {
 
 export function putImageRaw(x: number, y: number, image: Image) {
     isDirty = true;
-    x = Math.floor(x+offsetX);
-    y = Math.floor(y+offsetY);
+    x = Math.floor(x + offsetX);
+    y = Math.floor(y + offsetY);
     for (let h = 0; h < image.height; ++h) {
-        if (y + h >= HEIGHT) break;
+        if (y + h >= HEIGHT || y + h < 0) break;
         for (let w = 0; w < image.width; ++w) {
-            if (x + w >= WIDTH) break;
+            if (x + w >= WIDTH || x + w < 0) break;
             const off = (h + y) * WIDTH + x + w;
             memory[off + 1] = image.buf[h * image.width + w];
         }
