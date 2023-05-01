@@ -688,7 +688,6 @@ export function stopGame(): Promise<void> {
     }
     if (!currentGame) return new Promise((res) => res());
     const _game = currentGame;
-    currentGame = null;
     _game.remove?.();
     SceneManager.setscenes([]);
     currentGame = null;
@@ -787,6 +786,7 @@ export function shouldBreak() {
 }
 
 export function getCurrentGameName(): string {
+    console.log(currentGame);
     return currentGame?.name || '';
 }
 (window as any).getCurrentGameName = getCurrentGameName;

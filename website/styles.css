@@ -1,0 +1,87 @@
+@font-face {
+    font-family: rainbow32;
+    src: url(./rainbow32-font.ttf);
+}
+
+:root {
+    --color-black: #000000;
+    --color-less-black: #00021c;
+    --color-blue: #1c284d;
+    --color-purple: #343473;
+    --color-lighter-blue: #2d5280;
+    --color-: #4d7a99;
+    --color-: #7497a6;
+    --color-: #a3ccd9;
+    --color-white: #f0edd8;
+    --color-: #732866;
+    --color-: #a6216e;
+    --color-: #d94c87;
+    --color-: #d9214f;
+    --color-: #f25565;
+    --color-: #f27961;
+    --color-: #993649;
+    --color-: #b36159;
+    --color-: #f09c60;
+    --color-: #b38f24;
+    --color-: #b3b324;
+    --color-: #f7c93e;
+    --color-: #17735f;
+    --color-: #119955;
+    --color-: #67b31b;
+    --color-primary: #1ba683;
+    --color-secondary: #47cca9;
+    --color-: #96e3c9;
+    --color-: #2469b3;
+    --color-: #0b8be6;
+    --color-: #0bafe6;
+    --color-: #f28d85;
+    --color-: #f0bb90;
+    --font: rainbow32, monospace;
+}
+
+body {
+    background-color: #171717;
+    color: var(--color-white);
+    font-family: var(--font);
+}
+
+nav {
+    display: flex;
+    flex-direction: row;
+    width: 100vw;
+    background-color: var(--color-black);
+    position: fixed;
+    top: 0;
+    left: 0;
+    padding: 0 0.5rem;
+    align-items: center;
+    height: 3rem;
+    box-sizing: border-box;
+    padding-right: 0px;
+}
+
+nav h1 {
+    margin: 0.25rem 0;
+}
+
+nav .links {
+    margin-left: auto;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+}
+
+nav .links a {
+    text-decoration: none;
+    height: 3rem;
+    color: var(--color-white);
+    padding: 0 1rem;
+    text-align: center;
+
+    display: flex;
+    align-items: center;
+}
+
+nav .links a:hover {
+    background-color: var(--color-primary);
+}
