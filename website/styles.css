@@ -4,43 +4,43 @@
 }
 
 :root {
-    --color-black: #000000;
-    --color-less-black: #00021c;
-    --color-blue: #1c284d;
-    --color-purple: #343473;
-    --color-lighter-blue: #2d5280;
-    --color-: #4d7a99;
-    --color-: #7497a6;
-    --color-: #a3ccd9;
-    --color-white: #f0edd8;
-    --color-: #732866;
-    --color-: #a6216e;
-    --color-: #d94c87;
-    --color-: #d9214f;
-    --color-: #f25565;
-    --color-: #f27961;
-    --color-: #993649;
-    --color-: #b36159;
-    --color-: #f09c60;
-    --color-: #b38f24;
-    --color-: #b3b324;
-    --color-: #f7c93e;
-    --color-: #17735f;
-    --color-: #119955;
-    --color-: #67b31b;
-    --color-primary: #1ba683;
-    --color-secondary: #47cca9;
-    --color-: #96e3c9;
-    --color-: #2469b3;
-    --color-: #0b8be6;
-    --color-: #0bafe6;
-    --color-: #f28d85;
-    --color-: #f0bb90;
+    --color-black: #181425;
+    --color-: #be4a2f;
+    --color-: #d77643;
+    --color-: #ead4aa;
+    --color-: #e4a672;
+    --color-: #b86f50;
+    --color-: #733e39;
+    --color-: #3e2731;
+    --color-: #a22633;
+    --color-: #e43b44;
+    --color-: #f77622;
+    --color-: #feae34;
+    --color-: #fee761;
+    --color-: #63c74d;
+    --color-primary: #3e8948;
+    --color-secondary: #265c42;
+    --color-: #193c3e;
+    --color-: #124e89;
+    --color-: #0099db;
+    --color-: #2ce8f5;
+    --color-white: #ffffff;
+    --color-: #c0cbdc;
+    --color-: #8b9bb4;
+    --color-: #5a6988;
+    --color-: #3a4466;
+    --color-gray: #262b44;
+    --color-: #ff0044;
+    --color-: #68386c;
+    --color-: #b55088;
+    --color-: #f6757a;
+    --color-: #e8b796;
+    --color-: #c28569;
     --font: rainbow32, monospace;
 }
 
 body {
-    background-color: #171717;
+    background-color: var(--color-gray);
     color: var(--color-white);
     font-family: var(--font);
 }
@@ -80,8 +80,14 @@ nav .links a {
 
     display: flex;
     align-items: center;
+    user-select: none;
 }
 
-nav .links a:hover {
+nav .links a:hover,
+nav .links a:focus {
     background-color: var(--color-primary);
+}
+
+::selection {
+    background-color: var(--color-secondary);
 }
