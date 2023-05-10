@@ -22,7 +22,7 @@
     user-select: none;
 }
 body {
-    background-color: #262626;
+    background-color: #262b44;
     color: white;
     font-family: var(--font);
     display: flex;
@@ -43,7 +43,7 @@ body > div:not(.ignore) {
 }
 .text-button {
     height: 25px;
-    background-color: #171717;
+    background-color: #181425;
     margin: 3px;
     display: flex;
     align-items: center;
@@ -59,24 +59,24 @@ body > div:not(.ignore) {
     margin-left: auto;
 }
 .text-button:hover {
-    background-color: #202020;
+    background-color: #3a4466;
 }
 .text-button:active,
 .text-button.active {
-    background-color: #15803d;
+    background-color: #265c42;
 }
 .text-button.selected {
-    background-color: #d97706;
+    background-color: #f77622;
 }
 .text-button[disabled],
 .text-button[disabled]:active,
 .text-button[disabled].active {
-    background-color: #404040;
+    background-color: #5a6988;
     cursor: not-allowed;
 }
 .text-button-fake {
     height: 25px;
-    background-color: #171717;
+    background-color: #181425;
     margin: 3px;
     display: flex;
     align-items: center;
@@ -91,7 +91,7 @@ select,
 input[type='text'],
 input[type='number'] {
     height: 25px;
-    background-color: #171717;
+    background-color: #181425;
     margin: 3px;
     display: flex;
     align-items: center;
@@ -104,7 +104,7 @@ input[type='number'] {
     border: none;
 }
 textarea {
-    background-color: #171717;
+    background-color: #181425;
     margin: 3px;
     display: flex;
     align-items: center;
@@ -156,14 +156,14 @@ textarea {
 }
 
 .audio-entries.active {
-    background-color: #ca8a04;
+    background-color: #feae34;
 }
 
 .audio-entry {
     width: 2rem;
     aspect-ratio: 1.75/1;
     text-align: center;
-    background-color: #171717;
+    background-color: #181425;
     font-weight: bold;
     padding: 5px;
     user-select: none;
@@ -172,14 +172,14 @@ textarea {
 
 .audio-entry:hover,
 .audio-entry.active {
-    background-color: #404040;
+    background-color: #3a4466;
 }
 
 .keyboard {
     display: flex;
     width: fit-content;
     justify-content: flex-start;
-    border: 2px solid #404040;
+    border: 2px solid #3a4466;
     border-right: none;
     box-sizing: border-box;
 }
@@ -190,7 +190,7 @@ textarea {
     color: black;
     background-color: white;
     width: 1.75rem;
-    border-right: 2px solid #404040;
+    border-right: 2px solid #3a4466;
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -205,22 +205,12 @@ textarea {
 .keyboard .keyboard-key[data-sharp='true'] {
     --height: 4rem;
     color: white;
-    background-color: black;
-}
-
-.keyboard .keyboard-key:active {
-    margin-bottom: -7px;
-    height: calc(var(--height) + 7px);
-    background-color: #ca8a04;
-}
-
-.keyboard .keyboard-key[data-sharp='true']:active {
-    background-color: #a16207;
+    background-color: #181425;
 }
 
 kbd {
     font-size: 14px;
-    background-color: #404040;
+    background-color: #181425;
     color: white;
     font-weight: 300;
     padding: 3px;
@@ -263,7 +253,6 @@ body > div .line {
     position: fixed;
     height: 2rem;
     padding: 0 7px;
-    background-color: #26262633;
     left: 0px;
     right: 0px;
     top: 0px;
@@ -286,7 +275,7 @@ body > div .line {
     display: none;
     position: absolute;
     top: 100%;
-    background-color: #171717;
+    background-color: #181425;
     min-width: 100%;
     left: 0px;
     height: fit-content;
@@ -374,4 +363,40 @@ body > div .line {
 .utils {
     display: flex;
     flex-direction: column;
+}
+
+.tooltip::after {
+    content: var(--tooltip);
+    background-color: #8b9bb4;
+    cursor: text;
+    color: #fff;
+    padding: 5px 7px;
+    font-size: 0.7rem;
+    overflow: hidden;
+    position: absolute;
+    left: 50%;
+    max-width: 400px;
+    width: max-content;
+    transform: translate(-50%, -0.5rem);
+    border-radius: 3px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    white-space: pre;
+}
+
+.tooltip:hover::after {
+    opacity: 1;
+    transform: translate(-50%, -110%);
+    display: initial;
+    top: 0;
+}
+
+.tooltip {
+    position: relative;
+}
+
+::selection {
+    background-color: #fff !important;
+    color: #124e89 !important;
 }
