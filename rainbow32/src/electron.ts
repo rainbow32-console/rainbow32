@@ -366,6 +366,7 @@ window.addEventListener(
         function keyDown(ev: KeyboardEvent) {
             if (ev.key === 'F11' && electronAPI) {
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
                 electronAPI.toggleFullscreen();
             }
             if (!focused || !electronAPI) return;
@@ -373,10 +374,12 @@ window.addEventListener(
                 $move(false);
                 ev.preventDefault();
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
             } else if (ev.key === 'ArrowUp' || ev.key === 'w') {
                 $move(true);
                 ev.preventDefault();
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
             } else if (
                 ev.key === 'ArrowRight' ||
                 ev.key === 'a' ||
@@ -385,14 +388,17 @@ window.addEventListener(
                 $open();
                 ev.preventDefault();
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
             } else if (ev.key === 'ArrowLeft' || ev.key === 'd') {
                 $goUp();
                 ev.preventDefault();
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
             } else if (ev.key === 'Escape') {
                 hide();
                 ev.preventDefault();
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
             }
         }
         window.addEventListener('keydown', keyDown);
