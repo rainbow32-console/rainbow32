@@ -1,3 +1,4 @@
+import { screenshake, blackwhiteColorRenderer, oldColors } from './effectRendererDefaults'
 import { ImageRenderer } from './components/imageRenderer';
 import { BoxCollider } from './components/BoxCollisions';
 import _default from './fonts/default';
@@ -6,7 +7,7 @@ import legacy from './fonts/legacy';
 import { createComponent, gameobject } from './gameObject';
 import * as imageUtils from './imageUtils';
 import * as audioUtils from './audioUtils';
-import { buttons, HEIGHT, memory, shouldBreak, stopGame, WIDTH } from './index';
+import { buttons, HEIGHT, memory, renderParticles, shouldBreak, stopGame, WIDTH } from './index';
 import { distance, lerp } from './math';
 import { readFromFile, storeToFile } from './saveFile';
 import { Scene, SceneManager } from './SceneManager';
@@ -23,6 +24,7 @@ import {
 } from './text';
 import { addParticle, removeParticle, removeParticles } from './particleSystem';
 import { removeEntry, resetEntries, setEntry } from './pausemenu';
+import { applyEffect, applyRenderer, createEffect, createRenderer, removeEffect, removeRenderer } from './effects';
 
 function expose(name: string, variable: any) {
     Object.defineProperty(globalThis, name, {
@@ -35,6 +37,10 @@ function expose(name: string, variable: any) {
 }
 
 export function exposeToWorld() {
+    if (globalThis.__did_expose) return;
+    
+    globalThis.__did_expose = true;
+
     // text
     const fonts = {
         default: _default,
@@ -90,6 +96,7 @@ export function exposeToWorld() {
     expose('addparticle', addParticle);
     expose('removeparticle', removeParticle);
     expose('removeparticles', removeParticles);
+    expose('renderparticles', renderParticles);
 
     // menu
     expose('resetentries', resetEntries);
@@ -107,6 +114,7 @@ export function exposeToWorld() {
     expose('isValidColor', imageUtils.isValidColor);
     expose('parseMask', imageUtils.parseMask);
     expose('putImage', imageUtils.putImage);
+    expose('line', imageUtils.line);
     expose('putImageRaw', imageUtils.putImageRaw);
     expose('setCurrentPalette', imageUtils.setCurrentPalette);
     expose('square', imageUtils.square);
@@ -132,4 +140,14 @@ export function exposeToWorld() {
     expose('validNotes', audioUtils.validNotes);
     expose('validInstruments', audioUtils.validInstruments);
     expose('getVolume', audioUtils.getVolume);
+
+    // effects & rendering
+    expose('createeffect', createEffect);
+    expose('applyeffect', applyEffect);
+    expose('removeeffect', removeEffect);
+    expose('createrenderer', createRenderer);
+    expose('applyrenderer', applyRenderer);
+    expose('removerenderer', removeRenderer);
+    expose('effects', {screenshake, oldcolors: oldColors})
+    expose('renderers', {bwcolors: blackwhiteColorRenderer})
 }
