@@ -2,6 +2,6 @@
 
 ## Specs
 
-- Palette: [JEHKOBA32 PALETTE](https://lospec.com/palette-list/jehkoba32)
+- Palette: [ENDESGA 32 PALETTE](https://lospec.com/palette-list/endesga-32)
 - screen size: 200x180
 - Transparency: supported

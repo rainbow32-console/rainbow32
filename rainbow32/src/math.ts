@@ -5,6 +5,6 @@ export function lerp(p0: number, p1: number, t: number) {
     return p0 + t * (p1 - p0);
 }
 
-export function distance(x: number, y: number): number {
-    return Math.sqrt(Math.pow(y, 2) + Math.pow(x, 2));
+export function distance(x1: number, y1: number, x2:number, y2: number): number {
+    return Math.sqrt(Math.pow(x1-x2, 2) + Math.pow(y1-y2, 2));
 }

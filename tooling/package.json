@@ -3,8 +3,7 @@
         "watch": "tsx package.ts"
     },
     "dependencies": {
-        "esbuild-wasm": "^0.17.18",
-        "library": "../library/dist"
+        "esbuild-wasm": "^0.17.18"
     },
     "devDependencies": {
         "esbuild": "^0.17.18"

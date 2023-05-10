@@ -1,3 +1,4 @@
+import { colors } from './namespacedcolors';
 import charmap from './charmap';
 import {
     applyImageMask,
@@ -134,7 +135,7 @@ export function writeText(
     spaceWidth++;
 
     let line = 0;
-    color ||= 0;
+    if (color === undefined) color = colors.white;
     let origX = x;
     if (centered && linePadLeft[0]) x += linePadLeft[0];
     const images = [

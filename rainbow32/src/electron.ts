@@ -10,6 +10,8 @@ interface ElectronAPI {
     ): Promise<undefined | { name: string; file: boolean }[]>;
     getFileContents(device: string, path: string): Promise<string | undefined>;
     getCartridges(): Promise<string[]>;
+    loadProgram(program: 'sdk' | 'rainbow32'): void;
+    toggleFullscreen(): void;
 }
 const electronAPI: ElectronAPI | undefined = (window as any).electron
     ?.ipcRenderer;
@@ -96,7 +98,7 @@ function render() {
     div.classList.add('fileSelector');
     const pathOverview = document.createElement('p');
     pathOverview.classList.add('path');
-    pathOverview.textContent =
+    pathOverview.textContent = (
         (!currentDevice
             ? ''
             : currentDevice === 'home'
@@ -107,14 +109,15 @@ function render() {
             ? 'cartridges'
             : '/mnt/' + currentDevice) +
         '/' +
-        currentPath.join('/');
+        currentPath.join('/')
+    ).toLowerCase();
     div.append(pathOverview);
 
     if (currentDevice) {
         if (currentDevice === 'cartridges') {
-            div.append(makeEntry('.. (Go Up)', selected === 0, undefined));
+            div.append(makeEntry('.. (go up)', selected === 0, undefined));
             if (!cartridges) {
-                const loading = makeEntry('Loading...', false, undefined);
+                const loading = makeEntry('K loading...', false, undefined);
                 div.append(loading);
             } else {
                 for (let i = 0; i < cartridges.length; ++i) {
@@ -132,17 +135,27 @@ function render() {
         } else {
             for (let i = 0; i < files.length; ++i)
                 div.append(
-                    makeEntry(files[i].name, selected === i, files[i].file)
+                    makeEntry(
+                        files[i].name.toLowerCase(),
+                        selected === i,
+                        files[i].file
+                    )
                 );
         }
     } else {
         div.append(
-            makeEntry('/ (Root)', selected === 0, undefined),
+            makeEntry('/ (root)', selected === 0, undefined),
             makeEntry('home', selected === 1, undefined),
             makeEntry('cartridges', selected === 2, undefined)
         );
         for (let i = 0; i < devices.length; ++i)
-            div.append(makeEntry(devices[i], selected === i + 3, undefined));
+            div.append(
+                makeEntry(
+                    devices[i].toLowerCase(),
+                    selected === i + 3,
+                    undefined
+                )
+            );
     }
 
     return div;
@@ -347,28 +360,51 @@ function $open() {
         });
 }
 
-window.addEventListener('load', () => {
-    function keyDown(ev: KeyboardEvent) {
-        if (!focused || !electronAPI) return;
-        if (ev.key === 'ArrowDown' || ev.key === 's') {
-            $move(false);
-            ev.preventDefault();
-        } else if (ev.key === 'ArrowUp' || ev.key === 'w') {
-            $move(true);
-            ev.preventDefault();
-        } else if (ev.key === 'ArrowRight' || ev.key === 'a' || ev.key === 'Enter') {
-            $open();
-            ev.preventDefault();
-        } else if (ev.key === 'ArrowLeft' || ev.key === 'd') {
-            $goUp();
-            ev.preventDefault();
-        } else if (ev.key === 'Escape') {
-            hide();
-            ev.preventDefault();
+window.addEventListener(
+    'load',
+    () => {
+        function keyDown(ev: KeyboardEvent) {
+            if (ev.key === 'F11' && electronAPI) {
+                ev.cancelBubble = true;
+                ev.stopPropagation?.();
+                electronAPI.toggleFullscreen();
+            }
+            if (!focused || !electronAPI) return;
+            if (ev.key === 'ArrowDown' || ev.key === 's') {
+                $move(false);
+                ev.preventDefault();
+                ev.cancelBubble = true;
+                ev.stopPropagation?.();
+            } else if (ev.key === 'ArrowUp' || ev.key === 'w') {
+                $move(true);
+                ev.preventDefault();
+                ev.cancelBubble = true;
+                ev.stopPropagation?.();
+            } else if (
+                ev.key === 'ArrowRight' ||
+                ev.key === 'a' ||
+                ev.key === 'Enter'
+            ) {
+                $open();
+                ev.preventDefault();
+                ev.cancelBubble = true;
+                ev.stopPropagation?.();
+            } else if (ev.key === 'ArrowLeft' || ev.key === 'd') {
+                $goUp();
+                ev.preventDefault();
+                ev.cancelBubble = true;
+                ev.stopPropagation?.();
+            } else if (ev.key === 'Escape') {
+                hide();
+                ev.preventDefault();
+                ev.cancelBubble = true;
+                ev.stopPropagation?.();
+            }
         }
-    }
-    window.addEventListener('keydown', keyDown);
-});
+        window.addEventListener('keydown', keyDown);
+    },
+    { capture: true }
+);
 
 export function canvasFullScreen() {
     return !!(globalThis as any).__console_config_canvasFullScreen;

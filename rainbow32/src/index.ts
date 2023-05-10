@@ -4,15 +4,22 @@ import {
     recreateContext,
     unloadMusic,
 } from './audioUtils';
+import {
+    clearAllEffectsAndRenderer,
+    getPixel,
+    updateEffect as updateEffects,
+} from './effects';
 import { canvasFullScreen, isFocused, show } from './electron';
 import { exposeToWorld } from './expose';
 import {
     cls,
     ColorPalette,
+    defaultPalette,
     getColor,
     isDirty,
     removeDirtyMark,
     setCurrentPalette,
+    setOffset,
 } from './imageUtils';
 import { removeParticles, updateParticles } from './particleSystem';
 import {
@@ -125,7 +132,6 @@ export const buttons: Record<Button, { down: boolean; press: boolean }> = {
 export interface GameFile {
     name: string;
     palette?: ColorPalette;
-    bg: string;
 
     init?(): void;
     update?(dt: number): void;
@@ -215,6 +221,11 @@ let unfocused = false;
 const renderTimes: number[] = [];
 let oldPaused = false;
 
+let lastDt = 0;
+export function renderParticles() {
+    updateParticles(lastDt);
+}
+
 function render(dt: number) {
     try {
         const start = Date.now();
@@ -236,12 +247,13 @@ function render(dt: number) {
         oldPaused = paused;
         if (ctx && !isFocused()) {
             if (!paused && currentGame) {
+                lastDt = dt - previous;
                 if (isCollectingDebugData) debugData['Update State'] = 'Global';
-                currentGame.update?.(dt - previous);
+                updateEffects(dt);
+                currentGame.update?.(lastDt);
                 if (isCollectingDebugData)
                     debugData['Update State'] = 'Particles';
-                updateParticles(dt - previous);
-                SceneManager.update(dt - previous);
+                SceneManager.update(lastDt);
             }
             if (paused) renderPauseMenu();
             if (isCollectingDebugData) debugData['Update State'] = 'Screen';
@@ -250,14 +262,15 @@ function render(dt: number) {
                 ctx.clearRect(0, 0, WIDTH, HEIGHT);
                 for (let h = 0; h < HEIGHT; ++h)
                     for (let w = 0; w < WIDTH; ++w) {
-                        if (memory[h * WIDTH + w + 1] !== 0xff) {
-                            const color = getColor(memory[h * WIDTH + w + 1]);
-                            const offset = (h * WIDTH + w) * 4;
-                            buf[offset] = color.r;
-                            buf[offset + 1] = color.g;
-                            buf[offset + 2] = color.b;
-                            buf[offset + 3] = color.a;
-                        }
+                        const color =
+                            !paused && currentGame
+                                ? getPixel(memory[h * WIDTH + w + 1])
+                                : getColor(memory[h * WIDTH + w + 1]);
+                        const offset = (h * WIDTH + w) * 4;
+                        buf[offset] = color.r;
+                        buf[offset + 1] = color.g;
+                        buf[offset + 2] = color.b;
+                        buf[offset + 3] = color.a;
                     }
 
                 ctx.putImageData(new ImageData(buf, WIDTH, HEIGHT), 0, 0);
@@ -386,6 +399,7 @@ export async function unload() {
 export interface Rainbow32ConsoleElementGeneratorOptions {
     canvas: {
         height: string;
+        width: string;
         aspectRatio: string;
         bgCol: 'var(--bg-col)';
         zIndex: number;
@@ -428,6 +442,7 @@ export async function onLoad(
     withControls?: boolean,
     generator?: Rainbow32ConsoleElementGenerator
 ) {
+    exposeToWorld();
     if (done)
         throw new Error(
             'onLoad(...) was already called! call unload(...) first!'
@@ -460,6 +475,10 @@ export async function onLoad(
         canvas.style.backgroundColor = 'var(--bg-col)';
         canvas.style.zIndex = '10';
     }
+    canvas.setAttribute(
+        'style',
+        '--bg-col: ' + defaultPalette[0] + ';' + canvas.getAttribute('style')
+    );
 
     ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return console.error('Error: Could not initialize 2d context');
@@ -568,10 +587,10 @@ export async function onLoad(
 
         const start = generated?.buttons?.start
             ? generated.buttons.start
-            : makeTextBtn('Start');
+            : makeTextBtn('start');
         const reset = generated?.buttons?.stop
             ? generated.buttons.stop
-            : makeTextBtn('Reset');
+            : makeTextBtn('reset');
 
         if (!generated?.buttons?.start)
             start.classList.add('__rainbow32_button_start');
@@ -643,6 +662,7 @@ function callEvent(event: string, args: any[]) {
 
 export async function loadGame(game: GameFile) {
     if (!ctx) return;
+    setOffset(0, 0);
     try {
         resetEntries();
         await loadMusic();
@@ -654,18 +674,6 @@ export async function loadGame(game: GameFile) {
         cls();
         unpause();
         currentGame = game;
-        ctx?.canvas.setAttribute(
-            'style',
-            '--bg-col: ' +
-                game.bg +
-                '; ' +
-                (ctx.canvas
-                    .getAttribute('style')
-                    ?.replace(
-                        /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\))/,
-                        ''
-                    ) || '')
-        );
         if (game.palette) setCurrentPalette(game.palette);
         ctx.clearRect(0, 0, WIDTH, HEIGHT);
         game?.init?.();
@@ -686,21 +694,12 @@ export function stopGame(): Promise<void> {
     }
     if (!currentGame) return new Promise((res) => res());
     const _game = currentGame;
-    currentGame = null;
+    clearAllEffectsAndRenderer();
     _game.remove?.();
+    setCurrentPalette(defaultPalette);
     SceneManager.setscenes([]);
     currentGame = null;
     if (ctx) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx?.canvas.setAttribute(
-        'style',
-        '--bg-col: #000; ' +
-            (ctx.canvas
-                .getAttribute('style')
-                ?.replace(
-                    /--bg-col: *(#[0-9a-f]+|rgba?\(( *[0-9]+,? *)+\));/,
-                    ''
-                ) || '')
-    );
     resetEntries();
     if (ctx) putStartupImage();
     callEvent('afterStop', []);
@@ -714,9 +713,11 @@ export async function loadFromEvent(ev: InputEvent) {
 
         const el = ev.target as HTMLInputElement;
         if (!el.files || !el.files.item(0)) return;
+        const f = el.files.item(0);
+        if (!f) return;
         let text = '';
-        const buf = new Uint8Array(await el.files.item(0)!.arrayBuffer());
-        if (el.files.item(0)!.name.endsWith('.png')) {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        if (f.name.endsWith('.png')) {
             let offset =
                 buf[buf.length - 1] |
                 (buf[buf.length - 2] << 8) |
@@ -737,6 +738,7 @@ export async function loadFromEvent(ev: InputEvent) {
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
         runErrorAnimation();
     }
+    (ev.target as HTMLInputElement).value = '';
     delete (globalThis as any).__registeredGame;
 }
 
@@ -745,6 +747,8 @@ export async function loadFromEvent(ev: InputEvent) {
 
 let lastContents: string = '';
 
+let isLoadingGame = false;
+
 export async function loadGameByContents(contents: string | undefined | null) {
     if (!frame || !frame.isConnected || !contents) return;
     await stopGame();
@@ -752,6 +756,7 @@ export async function loadGameByContents(contents: string | undefined | null) {
     lastContents = contents;
     const p = runLoadAnimation();
     try {
+        isLoadingGame = true;
         await (async function () {
             return await eval(contents);
         })();
@@ -763,20 +768,25 @@ export async function loadGameByContents(contents: string | undefined | null) {
         delete (globalThis as any).__registeredGame;
         console.log('Loading Game %s', game?.name || 'no name specified', game);
         await Promise.allSettled([p]);
-        loadGame(game as GameFile);
+        await loadGame(game as GameFile);
     } catch (e: any) {
         stopGame();
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
         runErrorAnimation(e);
     }
     delete (globalThis as any).__registeredGame;
+    isLoadingGame = false;
+}
+
+export function shouldBreak() {
+    if (isLoadingGame) return false;
+    return !currentGame || !frame || !frame.isConnected || !done;
 }
 
 export function getCurrentGameName(): string {
     return currentGame?.name || '';
 }
 (window as any).getCurrentGameName = getCurrentGameName;
-exposeToWorld();
 
 export function startGame() {
     if (!frame || !frame.isConnected) return;
@@ -794,11 +804,13 @@ export function defaultElGenProps(
     frame: HTMLElement,
     isFullscreen: boolean
 ): Rainbow32ConsoleElementGeneratorOptions {
+    isFullscreen ||= canvasFullScreen();
     return {
         canvas: {
             aspectRatio: '200/180',
             bgCol: 'var(--bg-col)',
             height: isFullscreen ? '100%' : '50%',
+            width: '100%',
             zIndex: 10,
         },
         classes: {
@@ -837,4 +849,31 @@ export function resetCart() {
 window.addEventListener('beforeunload', () => {
     stopGame();
     return null;
+});
+
+export function isPaused() {
+    return paused;
+}
+export function setPaused(value: boolean) {
+    return (paused = !!value);
+}
+
+window.addEventListener('resize', () => {
+    if (!ctx?.canvas.isConnected) return;
+    ctx.canvas.style.width = '';
+    ctx.canvas.style.height = '';
+    if (
+        window.outerWidth <
+        window.outerHeight >> (buttonElements.up.isConnected ? 1 : 0)
+    )
+        ctx.canvas.style.width = '100%';
+    else
+        ctx.canvas.style.height = buttonElements.up.isConnected
+            ? '50%'
+            : '100%';
+    if (
+        window.outerWidth <
+        window.outerHeight >> (buttonElements.up.isConnected ? 1 : 0)
+    )
+        console.log('too short');
 });

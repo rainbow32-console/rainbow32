@@ -36,7 +36,7 @@ export type ColorPalette = [
     string
 ];
 
-export const defaultPalette: ColorPalette = [
+export const jokobah32: ColorPalette = [
     '#000000',
     '#00021c',
     '#1c284d',
@@ -71,6 +71,41 @@ export const defaultPalette: ColorPalette = [
     '#f0bb90',
 ];
 
+export const defaultPalette: ColorPalette = [
+    '#000000',
+    '#be4a2f',
+    '#d77643',
+    '#ead4aa',
+    '#e4a672',
+    '#b86f50',
+    '#733e39',
+    '#3e2731',
+    '#a22633',
+    '#e43b44',
+    '#f77622',
+    '#feae34',
+    '#fee761',
+    '#63c74d',
+    '#3e8948',
+    '#265c42',
+    '#193c3e',
+    '#124e89',
+    '#0099db',
+    '#2ce8f5',
+    '#ffffff',
+    '#c0cbdc',
+    '#8b9bb4',
+    '#5a6988',
+    '#3a4466',
+    '#262b44',
+    '#ff0044',
+    '#68386c',
+    '#b55088',
+    '#f6757a',
+    '#e8b796',
+    '#c28569',
+];
+
 export interface Image {
     width: number;
     height: number;
@@ -95,6 +130,12 @@ export function setCurrentPalette(palette: ColorPalette) {
 }
 
 export function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
+    if (color === 0xff) return {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 0,
+    }
     return parsedPalette[color];
 }
 
@@ -324,12 +365,12 @@ export function setOffset(x: number, y: number) {
 
 export function putImage(x: number, y: number, image: Image) {
     isDirty = true;
-    x = Math.floor(x+offsetX);
-    y = Math.floor(y+offsetY);
+    x = Math.floor(x + offsetX);
+    y = Math.floor(y + offsetY);
     for (let h = 0; h < image.height; ++h) {
-        if (y + h >= HEIGHT) break;
+        if (y + h >= HEIGHT || y + h < 0) continue;
         for (let w = 0; w < image.width; ++w) {
-            if (x + w >= WIDTH) break;
+            if (x + w >= WIDTH || x + w < 0) continue;
             const off = (h + y) * WIDTH + x + w;
             if (image.buf[h * image.width + w] === 0xff) continue;
             memory[off + 1] = image.buf[h * image.width + w];
@@ -337,26 +378,27 @@ export function putImage(x: number, y: number, image: Image) {
     }
 }
 
-export function setPixel(x: number, y: number, color: number|string) {
+export function setPixel(x: number, y: number, color: number | string) {
     if (typeof color === 'string') color = parseInt(color, 15);
     if (!isValidColor(color)) throw new Error('Color is invalid!');
-    x = Math.floor(x+offsetX);
-    y = Math.floor(y+offsetY);
+    x = Math.floor(x + offsetX);
+    y = Math.floor(y + offsetY);
     if (x >= WIDTH) return;
     if (y >= HEIGHT) return;
     if (x < 0) return;
     if (y < 0) return;
+    isDirty = true;
     memory[y * WIDTH + x + 1] = color;
 }
 
 export function putImageRaw(x: number, y: number, image: Image) {
     isDirty = true;
-    x = Math.floor(x+offsetX);
-    y = Math.floor(y+offsetY);
+    x = Math.floor(x + offsetX);
+    y = Math.floor(y + offsetY);
     for (let h = 0; h < image.height; ++h) {
-        if (y + h >= HEIGHT) break;
+        if (y + h >= HEIGHT || y + h < 0) continue;
         for (let w = 0; w < image.width; ++w) {
-            if (x + w >= WIDTH) break;
+            if (x + w >= WIDTH || x + w < 0) continue;
             const off = (h + y) * WIDTH + x + w;
             memory[off + 1] = image.buf[h * image.width + w];
         }
@@ -389,13 +431,13 @@ export function circle(radius: number, color: number | string): Image {
     if (!isValidColor(color)) throw new Error('That color is invalid!');
 
     const buf = new Uint8Array(radius * radius);
-    const halfRadius = radius * 0.5;
+    const halfRadius = Math.floor(radius * 0.5);
+    console.log(halfRadius);
 
     for (let h = 0; h < radius; ++h)
         for (let w = 0; w < radius; ++w) {
             buf[h * radius + w] =
-                distance(h - (halfRadius - 0.5), w - (halfRadius - 0.5)) <=
-                halfRadius + 1
+                distance(w, h, halfRadius, halfRadius) <= halfRadius
                     ? color
                     : 0xff;
         }
@@ -444,4 +486,52 @@ export function markAsDirty() {
 
 export function cls() {
     for (let i = 0; i < WIDTH * HEIGHT; ++i) memory[i + 1] = 0xff;
+}
+
+export function line(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    col: number
+): void {
+    isDirty = true;
+    x1 += offsetX;
+    x2 += offsetX;
+    y1 += offsetY;
+    y2 += offsetY;
+    let sx: number | undefined = undefined,
+        sy: number | undefined = undefined,
+        dx: number | undefined = undefined,
+        dy: number | undefined = undefined;
+    if (x1 < x2) {
+        sx = 1;
+        dx = x2 - x1;
+    } else {
+        sx = -1;
+        dx = x1 - x2;
+    }
+    if (y1 < y2) {
+        sy = 1;
+        dy = y2 - y1;
+    } else {
+        sy = -1;
+        dy = y1 - y2;
+    }
+    let err = dx - dy;
+    let e2: number | undefined = undefined;
+
+    while (x1 !== x2 && y1 !== y2) {
+        e2 = err * 2;
+        if (e2 > -dy) {
+            err = err - dy;
+            x1 = x1 + sx;
+        }
+        if (e2 < dx) {
+            err = err + dx;
+            y1 = y1 + sy;
+        }
+        if (x1 < 0 || x1 >= WIDTH || y1 < 0 || y1 >= HEIGHT) continue;
+        memory[y1 * WIDTH + x1 + 1] = col;
+    }
 }

@@ -5,22 +5,21 @@ import {
     getDebugString,
     HEIGHT,
     isLoaded,
+    isPaused,
     onLoad,
     Rainbow32ConsoleElementGeneratorOptions,
     Rainbow32ConsoleElements,
-    registerEvent,
     setDbgDataCollection,
+    setPaused,
     startGame,
     WIDTH,
 } from '../../rainbow32/src/index';
 import defaultImageData from './defaultImageData';
 
-let gameTitleH1: HTMLHeadingElement;
-
 function makeBtn(classes: string[], type: Button) {
     const div = document.createElement('div');
-    div.style.width = '2.5rem';
-    div.style.height = '2.5rem';
+    div.style.width = '4rem';
+    div.style.height = '4rem';
     div.style.backgroundColor = '#171717';
     div.style.margin = '3px';
     div.style.display = 'flex';
@@ -29,6 +28,7 @@ function makeBtn(classes: string[], type: Button) {
     div.style.userSelect = 'none';
     div.style.cursor = 'pointer';
     div.style.fontWeight = 'bold';
+    div.style.fontSize = '2rem';
     div.classList.add(...classes);
     div.textContent =
         type === 'down'
@@ -65,11 +65,11 @@ function genEls(
     const tmpEl = document.createElement('div');
 
     const canvas = document.createElement('canvas');
-    canvas.style.height = opt.canvas.height;
+    if (window.outerWidth < window.outerHeight >> (opt.withControls ? 1 : 0)) canvas.style.width = '100%';
+    else canvas.style.height = opt.canvas.height;
     canvas.style.aspectRatio = opt.canvas.aspectRatio;
     canvas.style.backgroundColor = opt.canvas.bgCol;
     canvas.style.zIndex = opt.canvas.zIndex.toString();
-    canvas.style.width = 'auto';
     canvas.style.position = 'absolute';
     canvas.style.top = '0px';
     canvas.style.bottom = '0px';
@@ -104,10 +104,6 @@ function genEls(
     opt.frame.append(content);
     content.classList.add('content');
 
-    const gameTitle = document.createElement('h1');
-    gameTitleH1 = gameTitle;
-    gameTitle.classList.add('gameTitle');
-    gameTitle.textContent = 'No game loaded!';
     const buttons = document.createElement('div');
     buttons.classList.add('buttons');
 
@@ -122,7 +118,7 @@ function genEls(
         [opt.classes.button, opt.classes.buttons.left],
         'left'
     );
-    btnLeft.style.marginRight = 'calc(2.5rem + 9px)';
+    btnLeft.style.marginRight = 'calc(4rem + 9px)';
 
     const btnRight = makeBtn(
         [opt.classes.button, opt.classes.buttons.right],
@@ -162,7 +158,7 @@ function genEls(
     fileInput.type = 'file';
     fileInput.style.display = 'none';
 
-    const startBtn = makeTextBtn('Start');
+    const startBtn = makeTextBtn('start');
     startBtn.classList.add(opt.classes.textButton, opt.classes.buttons.start);
     startBtn.addEventListener(
         'click',
@@ -170,16 +166,19 @@ function genEls(
             if (!isLoaded()) {
                 ev.preventDefault();
                 ev.cancelBubble = true;
+                ev.stopPropagation?.();
                 onLoad(document.body, true, genEls).then(startGame);
             }
         },
         { capture: true }
     );
+    const pauseBtn = makeTextBtn('pause');
+    pauseBtn.addEventListener('click', () => setPaused(!isPaused()));
 
-    const stopBtn = makeTextBtn('Stop');
+    const stopBtn = makeTextBtn('reset');
     stopBtn.classList.add(opt.classes.textButton, opt.classes.buttons.stop);
 
-    content.append(gameTitle, buttons, fileInput, startBtn, stopBtn);
+    content.append(buttons, fileInput, startBtn, stopBtn, pauseBtn);
 
     return {
         canvas,
@@ -211,7 +210,7 @@ window.addEventListener('load', () => {
     debugDataDiv.classList.add('debug-data');
     debugDataDiv.style.display = 'none';
     const title = document.createElement('h3');
-    title.textContent = 'Debug Data';
+    title.textContent = 'debug data';
     const pre = document.createElement('pre');
     pre.textContent = getDebugString();
     debugDataDiv.append(title, pre);
@@ -241,18 +240,13 @@ window.addEventListener('load', () => {
     }
 });
 
-registerEvent(
-    'afterLoad',
-    (game) => (gameTitleH1.textContent = game.name.toLowerCase())
-);
-registerEvent('afterStop', () => (gameTitleH1.textContent = 'no game loaded!'));
-
 document.addEventListener(
     'keydown',
     (ev) => {
         if (ev.key === 'Enter' && !isLoaded()) {
             ev.preventDefault();
             ev.cancelBubble = true;
+            ev.stopPropagation?.();
             onLoad(document.body, true, genEls).then(startGame);
         }
         if (ev.key === 'F11') {

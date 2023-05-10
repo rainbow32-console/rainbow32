@@ -9,7 +9,7 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path, { join } from 'path';
-import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron';
+import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import MenuBuilder from './menu';
 import { homedir, userInfo } from 'os';
 import { devices } from './getDevices';
@@ -17,11 +17,10 @@ import { mount, unmount } from './mount';
 import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { getMountpoint } from './getmount';
-import { spawnSync } from 'child_process';
 
 let mounted: string | null = null;
 
-let mainWindow: BrowserWindow | null = null;
+export let mainWindow: BrowserWindow | null = null;
 
 function resolvePath(device: string, path: string) {
   const newPath =
@@ -112,6 +111,27 @@ function pressKey(key: string) {
   });
 }
 
+ipcMain.on('toggle-fullscreen', () => {
+  if (!mainWindow) return;
+  mainWindow.setFullScreen(!mainWindow.isFullScreen());
+});
+
+const RESOURCES_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'assets')
+  : path.join(__dirname, '../../assets');
+
+export const getAssetPath = (...paths: string[]): string => {
+  return path.join(RESOURCES_PATH, ...paths);
+};
+
+ipcMain.on('load-program', (ev, program: 'sdk' | 'rainbow32') => {
+  if (!mainWindow) return;
+  if (program === 'rainbow32') mainWindow.loadFile(getAssetPath('rainbow.html'));
+  else if (program === 'sdk') mainWindow.loadFile(getAssetPath('sdk.html'));
+});
+
+const args = process.argv.slice(1);
+
 const createWindow = async () => {
   const RESOURCES_PATH = app.isPackaged
     ? path.join(process.resourcesPath, 'assets')
@@ -120,6 +140,7 @@ const createWindow = async () => {
   const getAssetPath = (...paths: string[]): string => {
     return path.join(RESOURCES_PATH, ...paths);
   };
+  const fullscreen = !args.includes('windowed') && !args.includes('sdk');
 
   mainWindow = new BrowserWindow({
     show: false,
@@ -131,19 +152,23 @@ const createWindow = async () => {
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
     },
-    fullscreen: true,
+    fullscreen,
   });
 
-  mainWindow.setFullScreen(true);
-  mainWindow.setFullScreen(true);
+  mainWindow.setFullScreen(fullscreen);
+  mainWindow.setFullScreen(fullscreen);
 
-  mainWindow.loadFile(getAssetPath('packaged.html'));
+  mainWindow.loadFile(
+    args.includes('sdk')
+      ? getAssetPath('sdk.html')
+      : getAssetPath('rainbow32.html')
+  );
 
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
-    mainWindow.setFullScreen(true);
+    mainWindow.setFullScreen(mainWindow.isFullScreen());
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {

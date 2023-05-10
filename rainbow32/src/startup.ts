@@ -1,7 +1,7 @@
 import { HEIGHT, WIDTH } from '.';
 import { playSound } from './audioUtils';
 import { Vec2 } from './gameObject';
-import { putImage, square } from './imageUtils';
+import { putImage, setOffset, square } from './imageUtils';
 import { writeText } from './text';
 
 const colors = [3, 4, 5, 27, 28, 12, 13, 11, 10, 9, 15, 19, 20];
@@ -53,10 +53,16 @@ export function runLoadAnimation(): Promise<void> {
 
 export async function runErrorAnimation(err?: any): Promise<void> {
     const y = putStartupImage();
-    writeText('cartridge crashed! :(\n\n' + err, 3, y, WIDTH - 3, {
-        color: 3,
-        background: 0,
-    });
+    writeText(
+        'cartridge crashed! :(\n\n' + ('' + err).toLowerCase(),
+        3,
+        y,
+        WIDTH - 3,
+        {
+            color: 3,
+            background: 0,
+        }
+    );
 
     await playSound(
         { octave: 4, sharp: false, sound: 'c' },
@@ -81,6 +87,7 @@ export function pressEnterImageData() {
 }
 
 export function putStartupImage(): number {
+    setOffset(0, 0);
     putImage(0, 0, square(WIDTH, HEIGHT, 0));
     return writeRainbowText(3, 'rainbow32 v1.0', 3).y + 8;
 }

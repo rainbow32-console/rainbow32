@@ -5,7 +5,8 @@ let f = readFileSync(join(__dirname, 'index.html')).toString();
 f = f
     .replace(
         '<script src="./dist/index.js"></script>',
-        '<script>' +
+        () =>
+            '<script>' +
             readFileSync(join(__dirname, 'dist/index.js'))
                 .toString()
                 .replaceAll('</script', '</sc\\ipt') +
@@ -13,7 +14,8 @@ f = f
     )
     .replace(
         '<link rel="stylesheet" href="./styles.css" />',
-        '<style>' +
+        () =>
+            '<style>' +
             readFileSync(join(__dirname, 'styles.css'))
                 .toString()
                 .replaceAll(/(  +)|\n/g, '')
@@ -38,8 +40,7 @@ f = f
                     `url(data:font/ttf;base64,${readFileSync(
                         join(__dirname, 'rainbow32-font.ttf')
                     ).toString('base64')})`
-                )
-                +
+                ) +
             '</style>'
     );
 writeFileSync(join(__dirname, 'packaged.html'), f);
