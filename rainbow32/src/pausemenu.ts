@@ -8,7 +8,8 @@ import {
     WIDTH,
 } from '.';
 import { setVolume, volume } from './audioUtils';
-import { cls, Image, markAsDirty, putImage, square } from './imageUtils';
+import { cls, markAsDirty, putImage, square } from './imageUtils';
+import { colors } from './namespacedcolors';
 import { calculateWidth, writeText } from './text';
 
 interface MenuEntry {
@@ -22,8 +23,8 @@ let selected = 0;
 function line(start: number, end: number, start1: number, end1: number) {
     const image =
         start === start1
-            ? square(1, end1 - end, 8)
-            : square(start1 - start, 1, 8);
+            ? square(1, end1 - end, colors.white)
+            : square(start1 - start, 1, colors.white);
     putImage(start, end, image);
 }
 let old_image_buf: Uint8Array;
@@ -58,7 +59,6 @@ export function renderPauseMenu() {
     const yt = HEIGHT / 2 - height / 2 - 4;
     putImage(xl, yt, square(xr - xl, yb - yt, 0));
     writeText(str, WIDTH / 2 - maxWidth / 2, HEIGHT / 2 - height / 2, WIDTH, {
-        color: 8,
         background: 0,
     });
     line(xl, yb, xr + 1, yb);
