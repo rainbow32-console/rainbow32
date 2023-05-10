@@ -123,6 +123,10 @@ export interface arraylike<T> {
     readonly length: number;
     readonly [n: number]: T;
 }
+export interface arraylikereadable<T> {
+    readonly length: number;
+    [n: number]: T;
+}
 export interface typedarrayconstructor<t> {
     readonly prototype: t;
     new (length: number): t;
@@ -255,9 +259,10 @@ export const entries = (object as any).entries as <T>(
 export const values = (object as any).values as <T>(
     o: { [s: string]: T } | arraylike<T>
 ) => T[];
-export function rnd<t>(
-    value: number | string | t[]
-): typeof value extends any[] ? t : typeof value {
+export function rnd<t>(value: t[]): t[];
+export function rnd(value: string): string;
+export function rnd(value: number): number;
+export function rnd<t>(value: number | string | t[]): number | string | t {
     if (typeof value === 'number') {
         value++;
         return flr(Math.random() * value);
@@ -302,6 +307,7 @@ export const removeparticle = importExposed('removeparticle') as (
     p: particle
 ) => void;
 export const removeparticles = importExposed('removeparticles') as () => void;
+export const renderparticles = importExposed('renderparticles') as () => void;
 export const __menu = {
     resetentries: importExposed('resetentries') as () => void,
     setentry: importExposed('setentry') as (
@@ -314,9 +320,7 @@ export const parseimage = importExposed('parseImage') as (img: string) => image;
 export const parsemask = importExposed('parseMask') as (
     mask: string
 ) => imagemask;
-export const defaultpalette = importExposed(
-    'defaultPalette'
-) as Readonly<colorpalette>;
+export const defaultpalette = importExposed('defaultPalette') as colorpalette;
 export const imageutils = {
     cls: importExposed('cls') as () => void,
     parseimage: importExposed('parseImage') as (img: string) => image,
@@ -337,10 +341,10 @@ export const imageutils = {
         height: number,
         color: number | string
     ) => image,
-    defaultpalette: importExposed('defaultPalette') as Readonly<colorpalette>,
+    defaultpalette: importExposed('defaultPalette') as colorpalette,
     getcolor: importExposed('getColor') as (
         color: number
-    ) => Record<'a' | 'b' | 'g' | 'r', number>,
+    ) => record<'a' | 'b' | 'g' | 'r', number>,
     getcurrentpalette: importExposed('getCurrentPalette') as () => colorpalette,
     isvalidcolor: importExposed('isValidColor') as (color: number) => boolean,
     parsemask: importExposed('parseMask') as (mask: string) => imagemask,
@@ -377,10 +381,19 @@ export const imageutils = {
         y: number,
         color: number | string
     ) => void,
+    line: importExposed('line') as (
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+        col: number
+    ) => void,
 };
 export const dist = importExposed('distance') as (
-    x: number,
-    y: number
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number
 ) => number;
 export const lerp = importExposed('lerp') as (
     p0: number,
@@ -388,7 +401,7 @@ export const lerp = importExposed('lerp') as (
     t: number
 ) => number;
 export const mem = importExposed('memory') as Uint8Array;
-export const buttons = importExposed('buttons') as Record<
+export const buttons = importExposed('buttons') as record<
     button,
     { down: boolean; press: boolean }
 >;
@@ -402,15 +415,15 @@ export const scenemanager = importExposed('scenemanager') as scenemanager;
 export const gameobject = importExposed('gameobject') as gameobject;
 export const createcomponent = importExposed('createcomponent') as <t>(
     component: component<t>,
-    data?: Partial<t>
+    data?: partial<t>
 ) => componententry<t>;
 export const component = importExposed('createcomponent') as <t>(
     component: component<t>,
-    data?: Partial<t>
+    data?: partial<t>
 ) => componententry<t>;
 export const comp = importExposed('createcomponent') as <t>(
     component: component<t>,
-    data?: Partial<t>
+    data?: partial<t>
 ) => componententry<t>;
 export const imagerenderer = importExposed('imagerenderer') as component<void>;
 export const boxcollider = importExposed('boxcollider') as component<{
@@ -615,7 +628,7 @@ export interface transform {
 }
 
 export interface component<config = void> {
-    init(config: Partial<config> | undefined, gameobject: gameobject): config;
+    init(config: partial<config> | undefined, gameobject: gameobject): config;
     update?(config: config, dt: number, gameobject: gameobject): void;
     remove?(config: config, gameobject: gameobject): void;
     readonly name: string;
@@ -627,13 +640,13 @@ export interface gameobjopts {
     mask?: imagemask | string;
     components?: componententry<any>[];
     opacity?: number;
-    transform?: Partial<transform>;
+    transform?: partial<transform>;
     customrenderer?: boolean;
-    events?: Record<string, (obj: gameobject, ...args: any[]) => void>;
-    eventsonce?: Record<string, (obj: gameobject, ...args: any[]) => void>;
+    events?: record<string, (obj: gameobject, ...args: any[]) => void>;
+    eventsonce?: record<string, (obj: gameobject, ...args: any[]) => void>;
 }
 
-type componententry<t> = { component: component<t>; config?: Partial<t> };
+type componententry<t> = { component: component<t>; config?: partial<t> };
 export interface gameobject {
     new (opts: gameobjopts): gameobject;
     readonly name: string;
@@ -653,7 +666,7 @@ export interface gameobject {
     emitevent(name: string, args: any[]): void;
 }
 
-export type font = Record<string, imagemask>;
+export type font = record<string, imagemask>;
 export interface line {
     y: number;
     start: number;
@@ -666,15 +679,47 @@ export function square(
     width: number,
     height: number,
     color: number | string,
-    mask?: imagemask
+    mask?: imagemask,
+    filled?: boolean
 ) {
-    if (mask && (mask.width !== width || mask.height !== height))
-        throw new Error(
-            'the mask width and height have to be equal to the of the square'
-        );
-    const image = imageutils.square(width, height, color);
-    if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
-    imageutils.putimage(x, y, image);
+    width = flr(width);
+    height = flr(height);
+    x = flr(x);
+    y = flr(y);
+    if (height < 1 || width < 1) return;
+    if (typeof color === 'string') color = parseInt(color, 32);
+    if (!filled) {
+        if (mask && (mask.width !== width || mask.height !== height))
+            throw new Error(
+                'the mask width and height have to be equal to the of the square'
+            );
+        const image: image = {
+            height,
+            width,
+            buf: new uint8array(width * height),
+        };
+        const buf = image.buf;
+        for (let i = 0; i < buf.length; ++i) buf[i] = 255;
+        for (let i = 0; i < width; ++i) buf[i] = color;
+        for (let i = 0; i < height - 2; ++i) {
+            buf[width * i + width] = color;
+            buf[width * i + width * 2 - 1] = color;
+        }
+        if (height > 1)
+            for (let i = 0; i < width; ++i)
+                buf[(height - 2) * width + i] = color;
+
+        if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
+        imageutils.putimage(x, y, image);
+    } else {
+        if (mask && (mask.width !== width || mask.height !== height))
+            throw new Error(
+                'the mask width and height have to be equal to the of the square'
+            );
+        const image = imageutils.square(width, height, color);
+        if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
+        imageutils.putimage(x, y, image);
+    }
 }
 export function circle(
     x: number,
@@ -732,15 +777,30 @@ export function spr(
     );
 }
 // TODO: implement
-export function del(arr: any[], index: number) {
-    index = flr(index);
-    if (index >= arr.length) return;
-    else if (index < 0) return;
-    if (index < 0.5 * arr.length) {
-    } else {
+export function del<t>(arr: t[], value: t) {
+    if (arr === null || !arr.length) return;
+    let firstIndex = arr.indexOf(value);
+    if (firstIndex < 0) return;
+    firstIndex++;
+
+    const newarr: t[] = [];
+    while (arr.length >= firstIndex) {
+        const v = arr.pop();
+        if (v !== value) newarr.unshift(v as t);
     }
+    arr.push(...newarr);
 }
-export const error = Error;
+export interface error {
+    name: string;
+    message: string;
+    stack?: string;
+}
+interface errorconstructor {
+    new (message?: string): error;
+    (message?: string): error;
+    readonly prototype: error;
+}
+export const error: errorconstructor = Error as any;
 export function isarr(value: any) {
     return Array.isArray(value);
 }
@@ -760,8 +820,8 @@ export function font(font?: font | string) {
 export function pal(palette?: colorpalette) {
     imageutils.setcurrentpalette(palette || (imageutils.defaultpalette as any));
 }
-export function camera(x: number, y: number) {
-    imageutils.setoffset(x, y);
+export function camera(x?: number, y?: number) {
+    imageutils.setoffset(x || 0, y || 0);
 }
 export function noop() {}
 export function menu(index: number, name?: string, callback?: () => void) {
@@ -777,7 +837,6 @@ export const setp = imageutils.setpixel;
 export interface gamefile {
     name: string;
     palette?: colorpalette;
-    bg: string;
 
     init?(): void;
     update?(dt: number): void;
@@ -825,25 +884,30 @@ export function cursor(x?: number, y?: number) {
         cursor_pos.y = 0;
     }
 }
+export const infinity = Infinity;
 export function print(
     text: string,
     color?: number,
     background?: number,
     x?: number,
     y?: number,
-    width?: number,
     spacewidth?: number,
     centered?: boolean
 ) {
     if (x !== undefined || y !== undefined) cursor(x, y);
-    const lines = textutils.writetext(
-        text,
-        cursor_pos.x,
-        cursor_pos.y,
-        width === undefined ? screen.width : cursor_pos.x+width,
-        { color, background, spaceWidth: spacewidth, centered }
-    );
-    cursor(lines[lines.length - 1].end + 1, lines[lines.length - 1].y);
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; ++i) {
+        const _lines = textutils.writetext(
+            lines[i],
+            cursor_pos.x,
+            cursor_pos.y,
+            infinity,
+            { color, background, spaceWidth: spacewidth, centered }
+        );
+        if (lines.length === 1 && y === lines.length - 1)
+            cursor(_lines[0].end + 1, _lines[0].y);
+        else cursor(0, cursor_pos.y + 6);
+    }
 }
 export function find<t>(
     arr: arraylike<t>,
@@ -873,6 +937,29 @@ export function reduce<t, k>(
     for (let i = 0; i < arr.length; ++i)
         defaultvalue = cb(defaultvalue, arr[i]);
     return defaultvalue;
+}
+export function filter<t>(
+    arr: arraylike<t>,
+    predicate: (el: t, index: number, arr: arraylike<t>) => boolean
+): t[] {
+    const newarr = [];
+    for (let i = 0; i < arr.length; ++i)
+        if (predicate(arr[i], i, arr)) newarr.push(arr[i]);
+    return newarr;
+}
+export function map<t, k>(
+    arr: arraylike<t>,
+    predicate: (el: t, index: number, arr: arraylike<t>) => k
+): k[] {
+    const newarr = [];
+    for (let i = 0; i < arr.length; ++i) newarr.push(predicate(arr[i], i, arr));
+    return newarr;
+}
+export function mmap<t, k>(
+    arr: arraylikereadable<t>,
+    predicate: (el: t, index: number, arr: arraylikereadable<t>) => t
+): void {
+    for (let i = 0; i < arr.length; ++i) arr[i] = predicate(arr[i], i, arr);
 }
 export class arraypipe<t> {
     private array: arraylike<t>;
@@ -957,10 +1044,98 @@ export const i = 'i';
 export const o = 'o';
 export const p = 'p';
 export function sleep(ms: number): promise<void> {
-    return new promise(r => settimeout(r,ms));
+    return new promise((r) => settimeout(r, ms));
 }
 export function type(value: any) {
     if (typeof value === 'object' && value === null) return 'null';
     if (typeof value === 'object' && isarr(value)) return 'array';
     return typeof value;
 }
+export const line = imageutils.line;
+export const getcolorhex = imageutils.getcolor;
+
+interface effect<T> {
+    update(dt: number, val: T, effect: effect<T> & { value: T }): void;
+    init(val: T, effect: effect<T> & { value: T }): void;
+    remove(val: T, effect: effect<T> & { value: T }): void;
+    name: string;
+}
+type effectfunction<T> = effect<T>['update'];
+
+type color = record<'r' | 'g' | 'b' | 'a', number>;
+interface renderer<T> {
+    update(
+        realcolor: color,
+        color: number,
+        val: T,
+        renderer: renderer<T> & { value: T }
+    ): color;
+    init(val: T, renderer: renderer<T> & { value: T }): void;
+    remove(val: T, renderer: renderer<T> & { value: T }): void;
+    name: string;
+}
+type rendererfunction<T> = renderer<T>['update'];
+
+export const createeffect = importExposed('createeffect') as <t>(
+    name: string,
+    update: effectfunction<t>,
+    init?:
+        | ((
+              val: t,
+              effect: effect<t> & {
+                  value: t;
+              }
+          ) => void)
+        | undefined,
+    remove?:
+        | ((
+              val: t,
+              effect: effect<t> & {
+                  value: t;
+              }
+          ) => void)
+        | undefined
+) => effect<t>;
+export const applyeffect = importExposed('applyeffect') as <t>(
+    effect: effect<t>,
+    value: t
+) => void;
+export const removeeffect = importExposed('removeeffect') as (
+    effect: effect<any> | string
+) => void;
+export const createrenderer = importExposed('createrenderer') as <t>(
+    name: string,
+    update: rendererfunction<t>,
+    init?:
+        | ((
+              val: t,
+              effect: renderer<t> & {
+                  value: t;
+              }
+          ) => void)
+        | undefined,
+    remove?:
+        | ((
+              val: t,
+              effect: renderer<t> & {
+                  value: t;
+              }
+          ) => void)
+        | undefined
+) => renderer<t>;
+export const applyrenderer = importExposed('applyrenderer') as <t>(
+    renderer: renderer<t>,
+    value: t
+) => void;
+export const removerenderer = importExposed('removerenderer') as (
+    renderer: renderer<any> | string
+) => void;
+
+export const effects = importExposed('effects') as {
+    screenshake: effect<number>;
+    oldcolors: effect<undefined>;
+};
+
+export const renderers = importExposed('renderers') as {
+    bwcolors: renderer<number>;
+};
