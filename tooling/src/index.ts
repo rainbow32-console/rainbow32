@@ -104,11 +104,12 @@ function text(text: string): Text {
 }
 function h(
     name: string,
-    attributes: Record<string, string>,
+    attributes: Record<string, any>,
     children: (HTMLElement | Text)[]
 ): HTMLElement {
     const $el = document.createElement(name);
-    for (const [k, v] of Object.entries(attributes)) $el.setAttribute(k, v);
+    for (const [k, v] of Object.entries(attributes))
+        $el.setAttribute(k, v + '');
     $el.append(...children);
     return $el;
 }
@@ -121,8 +122,10 @@ function paletteEntry(
     return h(
         'div',
         {
-            class: 'palette-entry ' + (selected && 'active'),
-            style: `background-color: ${color};`,
+            class: 'tooltip palette-entry ' + (selected && 'active'),
+            style: `background-color: ${color};--tooltip: '${index}/${index.toString(
+                32
+            )}\\A${color.toLowerCase()}'`,
             'data-index': index.toString(),
         },
         []
@@ -301,12 +304,10 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
                 !confirm('Are you sure?\nAny unsaved changes will be discarded')
             )
                 return;
-            const name = prompt('Name', 'My awesome game');
+            const name = prompt('Name', 'my awesome game');
             if (!name) return;
             const author = prompt('Author');
-            const color = prompt('Background', '#ffffff');
-            if (!color) return;
-            localStorage.setItem('code', _getCode(color, name));
+            localStorage.setItem('code', _getCode(name));
             localStorage.setItem('audios', '{}');
             localStorage.setItem(
                 'images',
@@ -349,10 +350,6 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
                     name,
                     author
                 );
-                alert(
-                    'An image will open in a new tab. This is your game, so save it. Import it like a javascript script, and it should launch.'
-                );
-                console.log(uri);
                 openImagePopup(uri);
             } catch (e) {
                 alert('' + e);
@@ -449,6 +446,27 @@ export function createNotification(
 
     xBtn.addEventListener('click', () => notification.remove());
 }
+interface ArrayLikeReadable<T> {
+    length: number;
+    [i: number]: number;
+}
+function setColor(
+    arr: ArrayLikeReadable<number>,
+    x: number,
+    y: number,
+    width: number,
+    color: number
+) {
+    arr[y * width + x] = color;
+}
+function getColorFromArray(
+    arr: ArrayLikeReadable<number>,
+    x: number,
+    y: number,
+    width: number
+): number {
+    return arr[y * width + x] === undefined ? 255 : arr[y * width + x];
+}
 async function openImagePopup(url: string) {
     if (lastSelected === 'compiled') return;
     const _selected = lastSelected;
@@ -458,8 +476,10 @@ async function openImagePopup(url: string) {
     popup.classList.add('ignore');
     popup.style.zIndex = '5000';
     popup.style.position = 'absolute';
-    popup.style.width = '100%';
-    popup.style.height = '100%';
+    popup.style.minWidth = '100%';
+    popup.style.minHeight = '100%';
+    popup.style.width = 'fit-content';
+    popup.style.height = 'fit-content';
     popup.style.top = '0px';
     popup.style.bottom = '0px';
     popup.style.left = '0px';
@@ -468,10 +488,10 @@ async function openImagePopup(url: string) {
     popup.style.border = 'none';
     popup.style.backgroundColor = '#64748b';
     popup.style.boxSizing = 'border-box';
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = 'auto';
 
     const svg = closeX();
-    svg.style.position = 'absolute';
+    svg.style.position = 'fixed';
     svg.style.margin = '10px';
     svg.style.right = '0px';
     svg.style.top = '0px';
@@ -480,7 +500,7 @@ async function openImagePopup(url: string) {
         'img',
         {
             src: url,
-            style: 'image-rendering: pixelated;flex-grow: 1;',
+            style: 'image-rendering: pixelated;',
         },
         []
     );
@@ -507,6 +527,7 @@ async function openImagePopup(url: string) {
         if (ev.key === 'Escape' || ev.key === 'Enter') {
             close();
             ev.cancelBubble = true;
+            ev.stopPropagation?.();
             ev.preventDefault();
         }
     }
@@ -600,6 +621,7 @@ async function openPopup(code: string) {
         if (ev.key === 'Escape') close();
         if (ev.key === 'Enter' || ev.key === 'Escape') {
             ev.cancelBubble = true;
+            ev.stopPropagation?.();
             ev.preventDefault();
         }
     }
@@ -612,6 +634,49 @@ async function openPopup(code: string) {
     popup.getElementsByTagName('input').item(0)?.remove();
 
     return popup;
+}
+function _useBucket(
+    arr: ArrayLikeReadable<number>,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    checked: number[],
+    color: number,
+    col: number,
+    toApply: [number, number][]
+) {
+    if (x < 0 || y < 0) return;
+    if (x >= width || y >= height) return;
+    if (checked.includes(y * width + x)) return;
+    checked.push(y * width + x);
+    if (getColorFromArray(arr, x, y, width) === col) {
+        toApply.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        setColor(arr, x, y, width, color);
+    }
+}
+function useBucket(
+    arr: ArrayLikeReadable<number>,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    checked: number[],
+    color: number
+) {
+    let col = getColorFromArray(arr, x, y, width);
+    if (col === color) return;
+    const toApply: [number, number][] = [
+        [x + 1, y],
+        [x - 1, y],
+        [x, y + 1],
+        [x, y - 1],
+    ];
+    while (toApply.length > 0) {
+        let [x, y] = toApply.pop();
+        if (x === undefined || y === undefined) return;
+        _useBucket(arr, x, y, width, height, checked, color, col, toApply);
+    }
 }
 function setupDrawing() {
     const drawElement = document.getElementsByClassName('draw')[0];
@@ -678,12 +743,16 @@ function setupDrawing() {
         { type: 'number', value: height.toString() },
         []
     ) as HTMLInputElement;
+    const brushSelector = textButton({ class: 'selected' }, [text('brush')]);
+    const bucketSelector = textButton({}, [text('fill bucket')]);
     drawElement.append(
         h('div', {}, [
             h('h3', {}, [text('width:')]),
             widthIn,
             h('h3', {}, [text('height:')]),
             heightIn,
+            h('h3', {}, [text('tool:')]),
+            h('div', { class: 'row' }, [brushSelector, bucketSelector]),
         ])
     );
     widthIn.addEventListener('change', () => {
@@ -714,8 +783,8 @@ function setupDrawing() {
     const canvas = h(
         'canvas',
         {
-            width: width.toString(),
-            height: height.toString(),
+            width: width * 8 - 1,
+            height: height * 8 - 1,
             class: 'paintCanvas',
             style: '--scale-factor: ' + scaleFactor,
         },
@@ -835,25 +904,43 @@ function setupDrawing() {
         updateCanvas();
     });
     function updateCanvas() {
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = width * 8 - 1;
+        canvas.height = height * 8 - 1;
         const image: Image = {
-            height,
-            width,
+            height: height,
+            width: width,
             buf: new Uint8Array(width * height),
         };
+        ctx.clearRect(0, 0, width * 8, height * 8);
         for (let h = 0; h < height; ++h)
             for (let w = 0; w < width; ++w)
-                image.buf[h * width + w] =
-                    data[h * width + w] !== undefined
-                        ? data[h * width + w]
-                        : 0xff;
-        ctx?.putImageData(imgToImageData(image)!, 0, 0);
+                if (
+                    data[h * width + w] !== undefined &&
+                    getColorFromArray(data, w, h, width) !== 255
+                ) {
+                    ctx.fillStyle =
+                        defaultPalette[getColorFromArray(data, w, h, width)];
+                    ctx.fillRect(w * 8, h * 8, 7, 7);
+                    setColor(image.buf, w, h, width, data[h * width + w]);
+                } else setColor(image.buf, w, h, width, 255);
+
         dataEl.value = stringifyImage(image);
     }
     updateCanvas();
+    let tool: 'brush' | 'fill' = 'brush';
+    bucketSelector.addEventListener('click', () => {
+        tool = 'fill';
+        brushSelector.classList.remove('selected');
+        bucketSelector.classList.add('selected');
+    });
+    brushSelector.addEventListener('click', () => {
+        tool = 'brush';
+        bucketSelector.classList.remove('selected');
+        brushSelector.classList.add('selected');
+    });
     canvas.addEventListener('mousemove', (ev) => {
         if (ev.buttons !== 1 && ev.buttons !== 2) return;
+        else if (tool !== 'brush') return;
         const x = Math.floor(
             ((ev.clientX - canvas.getBoundingClientRect().left) /
                 canvas.clientWidth) *
@@ -864,25 +951,11 @@ function setupDrawing() {
                 canvas.clientHeight) *
                 height
         );
-        if (ev.buttons === 1) data[y * width + x] = selected;
-        else delete data[y * width + x];
+        let col = ev.buttons === 1 ? selected : 255;
+        setColor(data, x, y, width, col);
         updateCanvas();
     });
     canvas.addEventListener('mousedown', (ev) => {
-        const x = Math.floor(
-            ((ev.clientX - canvas.getBoundingClientRect().left) /
-                canvas.clientWidth) *
-                width
-        );
-        const y = Math.floor(
-            ((ev.clientY - canvas.getBoundingClientRect().top) /
-                canvas.clientHeight) *
-                height
-        );
-        data[y * width + x] = selected;
-        updateCanvas();
-    });
-    canvas.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
         const x = Math.floor(
             ((ev.clientX - canvas.getBoundingClientRect().left) /
@@ -894,9 +967,12 @@ function setupDrawing() {
                 canvas.clientHeight) *
                 height
         );
-        delete data[y * width + x];
+        const col = ev.buttons === 1 ? selected : 255;
+        if (tool === 'brush') setColor(data, x, y, width, col);
+        else if (tool === 'fill') useBucket(data, x, y, width, height, [], col);
         updateCanvas();
     });
+    canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 }
 function setupMasking() {
     const maskingDiv = document.getElementsByClassName('mask')[0];
@@ -926,6 +1002,8 @@ function setupMasking() {
         { type: 'number', value: height.toString() },
         []
     ) as HTMLInputElement;
+    const brushSelector = textButton({ class: 'selected' }, [text('brush')]);
+    const bucketSelector = textButton({}, [text('fill bucket')]);
     maskingDiv.append(
         h('h2', {}, [text('masking Tool')]),
         h('div', {}, [
@@ -933,6 +1011,8 @@ function setupMasking() {
             widthIn,
             h('h3', {}, [text('height:')]),
             heightIn,
+            h('h3', {}, [text('tool:')]),
+            h('div', { class: 'row' }, [brushSelector, bucketSelector]),
         ])
     );
     widthIn.addEventListener('change', () => {
@@ -959,12 +1039,12 @@ function setupMasking() {
         height = newHeight;
         updateCanvas();
     });
-    let data: boolean[] = [];
+    let data: number[] = [];
     const canvas = h(
         'canvas',
         {
-            width: width.toString(),
-            height: height.toString(),
+            width: width * 8 - 1,
+            height: height * 8 - 1,
             class: 'paintCanvas',
             style: '--scale-factor: ' + scaleFactor,
         },
@@ -1016,7 +1096,7 @@ function setupMasking() {
                         (h * mask.width + w) % 8) &
                     1
                 )
-                    data[h * mask.width + w] = true;
+                    data[h * mask.width + w] = 1;
         width = mask.width;
         height = mask.height;
         widthIn.value = mask.width.toString();
@@ -1025,25 +1105,24 @@ function setupMasking() {
     });
 
     function updateCanvas() {
-        canvas.width = width;
-        canvas.height = height;
-        const image: Image = {
-            height,
-            width,
-            buf: new Uint8Array(width * height),
-        };
+        canvas.width = width * 8 - 1;
+        canvas.height = height * 8 - 1;
         const mask = {
             height,
             width,
             buf: new Uint8Array(Math.ceil((width * height) / 8)),
         };
+        ctx.fillStyle = defaultPalette[20];
+        ctx.fillRect(0, 0, width * 8 - 1, height * 8 - 1);
+        ctx.fillStyle = defaultPalette[0];
         for (let h = 0; h < height; ++h)
             for (let w = 0; w < width; ++w) {
                 const off = h * width + w;
-                image.buf[off] = data[off] ? 0 : 8;
-                if (data[off]) mask.buf[Math.floor(off / 8)] |= 1 << off % 8;
+                if (data[off] && data[off] !== 255) {
+                    mask.buf[Math.floor(off / 8)] |= 1 << off % 8;
+                    ctx.fillRect(w * 8, h * 8, 7, 7);
+                }
             }
-        ctx?.putImageData(imgToImageData(image)!, 0, 0);
         dataEl.value = stringifyMask(mask);
         let _data = '';
         let off = width.toString().length + height.toString().length + 2;
@@ -1057,6 +1136,7 @@ function setupMasking() {
     updateCanvas();
     canvas.addEventListener('mousemove', (ev) => {
         if (ev.buttons !== 1 && ev.buttons !== 2) return;
+        if (tool !== 'brush') return;
         const x = Math.floor(
             ((ev.clientX - canvas.getBoundingClientRect().left) /
                 canvas.clientWidth) *
@@ -1067,9 +1147,21 @@ function setupMasking() {
                 canvas.clientHeight) *
                 height
         );
-        if (ev.buttons === 1) data[y * width + x] = true;
+
+        if (ev.buttons === 1) data[y * width + x] = 1;
         else delete data[y * width + x];
         updateCanvas();
+    });
+    let tool: 'brush' | 'fill' = 'brush';
+    brushSelector.addEventListener('click', () => {
+        tool = 'brush';
+        bucketSelector.classList.remove('selected');
+        brushSelector.classList.add('selected');
+    });
+    bucketSelector.addEventListener('click', () => {
+        tool = 'fill';
+        brushSelector.classList.remove('selected');
+        bucketSelector.classList.add('selected');
     });
     canvas.addEventListener('mousedown', (ev) => {
         const x = Math.floor(
@@ -1082,24 +1174,21 @@ function setupMasking() {
                 canvas.clientHeight) *
                 height
         );
-        data[y * width + x] = true;
+        if (tool === 'brush')
+            setColor(data, x, y, width, ev.buttons === 1 ? 1 : 255);
+        else
+            useBucket(
+                data,
+                x,
+                y,
+                width,
+                height,
+                [],
+                ev.buttons === 1 ? 1 : 255
+            );
         updateCanvas();
     });
-    canvas.addEventListener('contextmenu', (ev) => {
-        ev.preventDefault();
-        const x = Math.floor(
-            ((ev.clientX - canvas.getBoundingClientRect().left) /
-                canvas.clientWidth) *
-                width
-        );
-        const y = Math.floor(
-            ((ev.clientY - canvas.getBoundingClientRect().top) /
-                canvas.clientHeight) *
-                height
-        );
-        delete data[y * width + x];
-        updateCanvas();
-    });
+    canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 }
 function setupMusic() {
     const element = document.getElementsByClassName('music')[0];
@@ -1926,8 +2015,14 @@ function setupEditor() {
                 compiling = false;
             };
             downloadBtn.addEventListener('click', compileAndDownload);
-            monaco.languages.typescript.javascriptDefaults.setCompilerOptions({ lib: ['ES2015', 'Promise'], allowNonTsExtensions: true });
-            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({ lib: ['ES2015', 'Promise'], allowNonTsExtensions: true });
+            monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+                lib: ['ES2015', 'Promise'],
+                allowNonTsExtensions: true,
+            });
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+                lib: ['ES2015', 'Promise'],
+                allowNonTsExtensions: true,
+            });
 
             const monacoEditor = monaco.editor.create(editor, {
                 language: 'typescript',
@@ -2474,7 +2569,50 @@ function setupUtils() {
         []
     ) as HTMLTextAreaElement;
     const submit = textButton({}, [text('process')]);
-    element.append(row(h('h3', {}, [text('text to image')]), submit), textarea);
+    const colorselect = h(
+        'select',
+        { style: 'color:' + defaultPalette[0] + ';background-color:#fff;' },
+        []
+    ) as HTMLSelectElement;
+    for (let i = 0; i < defaultPalette.length; ++i) {
+        const col = getColor(i);
+        colorselect.append(
+            h(
+                'option',
+                {
+                    value: '' + defaultPalette[i],
+                    style:
+                        'color:' +
+                        defaultPalette[i] +
+                        (col.r + col.g + col.b < 127 * 2
+                            ? ';background-color:#fff;'
+                            : ';background-color:#181425'),
+                },
+                [text('' + defaultPalette[i])]
+            )
+        );
+    }
+    const lowercasebtn = textButton({}, [text('apply lowercase')]);
+    element.append(
+        row(
+            h('h3', {}, [text('text to image')]),
+            submit,
+            colorselect,
+            lowercasebtn
+        ),
+        textarea
+    );
+    colorselect.addEventListener('change', () => {
+        colorselect.style.color = colorselect.value;
+        const col = getColor(colorselect.selectedIndex);
+        if (col.r + col.g + col.b < 127 * 2)
+            colorselect.style.backgroundColor = '#fff';
+        else colorselect.style.backgroundColor = '#181425';
+    });
+    lowercasebtn.addEventListener(
+        'click',
+        () => (textarea.value = textarea.value.toLowerCase())
+    );
     submit.addEventListener('click', () => {
         const text = textarea.value;
         const width = calculateWidth(text);
@@ -2485,7 +2623,7 @@ function setupUtils() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.imageSmoothingEnabled = false;
-        customWriteText(text, ctx, 0, 0, Infinity);
+        customWriteText(text, ctx, 0, 0, Infinity, colorselect.selectedIndex);
         openImagePopup(canvas.toDataURL());
     });
 }
@@ -2530,6 +2668,7 @@ window.addEventListener(
             addImage(name, image);
             ev.preventDefault();
             ev.cancelBubble = true;
+            ev.stopPropagation?.();
         }
         if (lastSelected === 'compiled') return;
         if (ev.key === 'n' && ev.altKey)
@@ -2556,6 +2695,7 @@ window.addEventListener(
                 return;
             ev.preventDefault();
             ev.cancelBubble = true;
+            ev.stopPropagation?.();
             let index = tabs.indexOf(lastSelected) + tabs.length;
             if (ev.key === 'ArrowRight') index++;
             else index--;
@@ -2621,9 +2761,10 @@ function customWriteText(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    maxWidth: number
+    maxWidth: number,
+    color?: number
 ) {
-    let color = 8;
+    if (color === undefined) color = 20;
     let origX = x;
     const images = [
         square(1, 5, color),
@@ -2645,7 +2786,7 @@ function customWriteText(
             x += 4;
             continue;
         }
-        const mask = _default[text[i].toLowerCase()];
+        const mask = _default[text[i]];
         if (!mask) {
             x += 4;
             console.log('Text: No mask found for "%s"', text[i]);
@@ -2678,7 +2819,13 @@ async function codeToCartridge(image: string, name: string, author: string) {
     ctx.putImageData(imgToImageData(square(84, 87, 8))!, 22, 17);
     putImageData(ctx, imgToImageData(parsed), 22, 17);
 
-    customWriteText(`${name}\nBy ${author}`, ctx, 22, 115, 106);
+    customWriteText(
+        `${name.toLowerCase()}\nby ${author.toLowerCase()}`,
+        ctx,
+        22,
+        115,
+        106
+    );
     const data = await fetch(canvas.toDataURL('image/png'))
         .then((res) => res.arrayBuffer())
         .then((buf) => new Uint8Array(buf))
