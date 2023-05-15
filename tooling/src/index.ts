@@ -3,6 +3,7 @@ import {
     defaultPalette,
     getCurrentPalette,
     Image,
+    ImageMask,
     imgToPng,
     parsedPalette,
     parseImage,
@@ -11,6 +12,11 @@ import {
     stringifyImage,
     stringifyMask,
 } from '../../rainbow32/src/imageUtils';
+import {
+    Animation,
+    AnimationFrame,
+    AnimationPlayer,
+} from '../../rainbow32/src/animation';
 import { imageDataURI } from './img';
 import { compileTypescript, compile } from './esbuild';
 import {
@@ -197,7 +203,15 @@ function textButton(
     );
 }
 
-type tab = 'draw' | 'mask' | 'music' | 'keybinds' | 'editor' | 'data' | 'utils';
+type tab =
+    | 'draw'
+    | 'mask'
+    | 'music'
+    | 'keybinds'
+    | 'editor'
+    | 'data'
+    | 'utils'
+    | 'animations';
 
 let lastSelected: 'compiled' | tab = 'draw';
 
@@ -206,10 +220,16 @@ const tabs: tab[] = [
     'mask',
     'keybinds',
     'music',
+    'animations',
     'editor',
     'data',
     'utils',
 ];
+
+export interface AnimationData {
+    type: 'text' | 'image' | 'mask';
+    animation: Animation<string>;
+}
 
 declare var require: any;
 declare var monaco: any;
@@ -217,15 +237,20 @@ let updateMasks = (newMasks: string[]) => {};
 let updateAudios = (newAudios: string[]) => {};
 let updateImages = (newImages: string[]) => {};
 let updateTexts = (newTexts: string[]) => {};
+let updateAnimations = (newAnimations: string[]) => {};
 let editorPostInit = () => {};
 export let getImages: () => Record<string, string> = () => ({});
 export let getMasks: () => Record<string, string> = getImages;
 export let getAudios: () => Record<string, string> = getImages;
 export let getTexts: () => Record<string, string> = getImages;
+export let getAnimations: () => Record<string, AnimationData> =
+    getImages as any;
 let getCode: () => string = () => localStorage.getItem('code') || '';
 let compileAndPopup = () => {};
 let compileAndDownload = () => {};
 let addImage = (name?: string, image?: string) => {};
+let getAnimation: () => AnimationData = () => ({ type: 'text', animation: [] });
+let setAnimation: (animation: AnimationData) => void = getImages as any;
 
 function serialize(): string {
     try {
@@ -234,6 +259,7 @@ function serialize(): string {
             audios: localStorage.getItem('audios') || '{}',
             images: localStorage.getItem('images') || '{}',
             masks: localStorage.getItem('masks') || '{}',
+            animations: localStorage.getItem('animations') || '{}',
             author: localStorage.getItem('author') || '',
             name: localStorage.getItem('name') || '',
             texts: localStorage.getItem('texts') || '',
@@ -257,6 +283,7 @@ function deserialize(data: string) {
         localStorage.setItem('images', parsed.images || '{}');
         localStorage.setItem('masks', parsed.masks || '{}');
         localStorage.setItem('texts', parsed.texts || '{}');
+        localStorage.setItem('animations', parsed.animations || '{}');
     } catch (e) {
         createNotification('Error', 'Error loading your project!', '#b91c1c');
         throw e;
@@ -314,6 +341,7 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
                 '{"_cartridge": "84:87:' + '8'.repeat(7308) + '"}'
             );
             localStorage.setItem('masks', '{}');
+            localStorage.setItem('animations', '{}');
             localStorage.setItem(
                 'texts',
                 `{"_name": ${JSON.stringify(name)}, "_author": ${JSON.stringify(
@@ -1005,7 +1033,7 @@ function setupMasking() {
     const brushSelector = textButton({ class: 'selected' }, [text('brush')]);
     const bucketSelector = textButton({}, [text('fill bucket')]);
     maskingDiv.append(
-        h('h2', {}, [text('masking Tool')]),
+        h('h2', {}, [text('masking tool')]),
         h('div', {}, [
             h('h3', {}, [text('width:')]),
             widthIn,
@@ -2085,6 +2113,11 @@ function setupEditor() {
                     'type validstringpath = never',
                     'defaults-strings.d.ts'
                 ).dispose;
+            let disposeAnimations =
+                monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                    'type validanimationspath = never',
+                    'defaults-animations.d.ts'
+                ).dispose;
             updateMasks = function (masks) {
                 disposeMasks();
                 disposeMasks =
@@ -2140,12 +2173,25 @@ function setupEditor() {
                         'defaults-strings.d.ts'
                     ).dispose;
             };
+            updateAnimations = function (animations) {
+                disposeAnimations();
+                disposeAnimations =
+                    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                        'type validanimationspath = ' +
+                            (animations.length < 1
+                                ? 'never'
+                                : animations
+                                      .map((el) => JSON.stringify(el))
+                                      .join('|')),
+                        'defaults-animations.d.ts'
+                    ).dispose;
+            };
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
                 globals,
                 'globals.d.ts'
             );
             monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                'declare function getimage(path: validimagepath): image;\ndeclare function getmask(path: validmaskpath): imagemask;\ndeclare function getaudio(path: validaudiopath): audio;\ndeclare function getstring(path: validstringpath): string;',
+                'declare function getimage(path: validimagepath): image;\ndeclare function getmask(path: validmaskpath): imagemask;\ndeclare function getaudio(path: validaudiopath): audio;\ndeclare function getstring(path: validstringpath): string;\ndeclare function getanimation(path: validanimationspath): Animation<string|image|imagemask>;',
                 'utils.d.ts'
             );
             editorPostInit();
@@ -2176,19 +2222,22 @@ function setupDataManager() {
     let masks: Record<string, string> = {};
     let audios: Record<string, string> = {};
     let texts: Record<string, string> = {};
+    let animations: Record<string, AnimationData> = {};
 
     getImages = () => images;
     getMasks = () => masks;
     getAudios = () => audios;
     getTexts = () => texts;
+    getAnimations = () => animations;
 
     editorPostInit = () => {
         updateMasks(Object.keys(masks));
         updateImages(Object.keys(images));
         updateAudios(Object.keys(audios));
         updateTexts(Object.keys(texts));
+        updateAnimations(Object.keys(animations));
     };
-
+    //#region loading
     try {
         const n = JSON.parse(localStorage.getItem('images') || '');
         if (!n || typeof n !== 'object') throw '';
@@ -2209,18 +2258,30 @@ function setupDataManager() {
         if (!n || typeof n !== 'object') throw '';
         texts = n;
     } catch {}
-
+    try {
+        const n = JSON.parse(localStorage.getItem('texts') || '');
+        if (!n || typeof n !== 'object') throw '';
+        texts = n;
+    } catch {}
+    try {
+        const n = JSON.parse(localStorage.getItem('animations') || '');
+        if (!n || typeof n !== 'object') throw '';
+        animations = n;
+    } catch {}
+    //#endregion
     function sync() {
         localStorage.setItem('images', JSON.stringify(images));
         localStorage.setItem('masks', JSON.stringify(masks));
         localStorage.setItem('audios', JSON.stringify(audios));
         localStorage.setItem('texts', JSON.stringify(texts));
+        localStorage.setItem('animations', JSON.stringify(animations));
         updateMasks(Object.keys(masks));
         updateImages(Object.keys(images));
         updateAudios(Object.keys(audios));
         updateTexts(Object.keys(texts));
+        updateAnimations(Object.keys(animations));
     }
-
+    //#region images
     const addImageBtn = textButton({ style: 'margin-left: auto' }, [
         text('add'),
     ]);
@@ -2296,7 +2357,8 @@ function setupDataManager() {
     for (const [k, v] of Object.entries(images)) addImage(k, v);
 
     addImageBtn.addEventListener('click', () => addImage());
-
+    //#endregion
+    //#region masks
     const addMaskBtn = textButton({ style: 'margin-left: auto' }, [
         text('add'),
     ]);
@@ -2371,7 +2433,8 @@ function setupDataManager() {
     for (const [k, v] of Object.entries(masks)) generateMaskBtn(k, v);
 
     addMaskBtn.addEventListener('click', () => generateMaskBtn());
-
+    //#endregion
+    //#region audios
     const addAudioBtn = textButton({ style: 'margin-left: auto' }, [
         text('add'),
     ]);
@@ -2445,7 +2508,8 @@ function setupDataManager() {
     for (const [k, v] of Object.entries(audios)) generateAudioBtn(k, v);
 
     addAudioBtn.addEventListener('click', () => generateAudioBtn());
-
+    //#endregion
+    //#region strings
     const addTextBtn = textButton({ style: 'margin-left: auto' }, [
         text('add'),
     ]);
@@ -2508,6 +2572,69 @@ function setupDataManager() {
 
     for (const [k, v] of Object.entries(texts)) generateTextBtn(k, v);
     addTextBtn.addEventListener('click', () => generateTextBtn());
+    //#endregion
+    //#region animations
+
+    const addAnimationsButtons = textButton({ style: 'margin-left: auto' }, [
+        text('add'),
+    ]);
+    const animationsElement = h('div', {}, []);
+    element.append(
+        h('div', { class: 'line', style: 'margin-top: 7px' }, []),
+        h('div', { class: 'row' }, [
+            h('h3', { style: 'margin-top: 3px' }, [text('animations')]),
+            addAnimationsButtons,
+        ]),
+        animationsElement
+    );
+
+    function generateAnimationsBtn(name?: string, data?: AnimationData) {
+        if (!name) name = prompt('Name (at least 2 character):') || '';
+        data ||= getAnimation();
+        if (!data || !name) return;
+        animations[name] = data;
+        sync();
+        const overwriteBtn = textButton({ style: 'margin-left: auto;' }, [
+            text('overwrite'),
+        ]);
+        const loadBtn = textButton({}, [text('load')]);
+        const removeBtn = textButton({}, [text('remove')]);
+        const el = h('div', { class: 'row' }, [
+            h('h4', {}, [text(name)]),
+            overwriteBtn,
+            removeBtn,
+            loadBtn,
+        ]);
+
+        overwriteBtn.addEventListener('click', () => {
+            if (!confirm('Do you want to overwrite ' + name)) return;
+            const data = getAnimation();
+            if (!data) return;
+            animations[name!] = data;
+            sync();
+        });
+
+        removeBtn.addEventListener('click', () => {
+            if (confirm('Do you want to remove ' + name)) {
+                el.remove();
+                delete animations[name!];
+                sync();
+            }
+        });
+
+        loadBtn.addEventListener('click', () => {
+            if (!animations[name!]) return;
+            setAnimation(animations[name!]);
+        })
+
+        animationsElement.append(el);
+        return el;
+    }
+
+    for (const [k, v] of Object.entries(animations)) generateAnimationsBtn(k, v);
+    addAnimationsButtons.addEventListener('click', () => generateAnimationsBtn());
+
+    //#endregion
 }
 function setupMenu() {
     const topbar = document.getElementsByClassName('topbar')[0] as
@@ -2627,6 +2754,274 @@ function setupUtils() {
         openImagePopup(canvas.toDataURL());
     });
 }
+function setupAnimations() {
+    const element = document.getElementsByClassName(
+        'animations'
+    )[0] as HTMLDivElement;
+    if (!element) return;
+    element.addEventListener('mousedown', () => (lastSelected = 'animations'));
+
+    let type: 'image' | 'mask' | 'text' = 'text';
+    const typeSelector = h('select', {}, [
+        h('option', { value: 'image' }, [text('image')]),
+        h('option', { value: 'mask' }, [text('mask')]),
+        h('option', { value: 'text', selected: '' }, [text('text')]),
+    ]) as HTMLSelectElement;
+    const addFrame = textButton({}, [text('add frame')]);
+    const playButton = textButton({}, [text('play')]);
+    let current = h(
+        'input',
+        { type: 'text', disabled: '', value: 'not playing' },
+        []
+    ) as HTMLInputElement | HTMLCanvasElement;
+    element.append(
+        h('h3', {}, [text('animations')]),
+        row(h('h3', {}, [text('type:')]), typeSelector, addFrame, playButton),
+        current
+    );
+
+    getAnimation = () => ({
+        type,
+        animation: frames.map((el) => ({ ...el })),
+    });
+
+    setAnimation = (animation) => {
+        type = animation.type;
+        while (frames.length) frames.pop();
+        frames.push(...animation.animation);
+        if (
+            (type === 'image' || type === 'mask') &&
+            !(current instanceof HTMLCanvasElement)
+        ) {
+            const node = h(
+                'canvas',
+                {
+                    width: 1,
+                    height: 1,
+                    style: 'width: 16rem;height: 16rem;',
+                },
+                []
+            ) as HTMLCanvasElement;
+            current.replaceWith(node);
+            current = node;
+            const ctx = node.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, node.width, node.height);
+            ctx.imageSmoothingEnabled = false;
+            node.style.imageRendering = 'pixelated';
+            node.style.backgroundColor = '#fff';
+        } else if (type === 'text' && !(current instanceof HTMLInputElement)) {
+            const node = h(
+                'input',
+                { type: 'text', disabled: '', value: 'not playing' },
+                []
+            ) as HTMLInputElement;
+            current.replaceWith(node);
+            current = node;
+        }
+        rerender();
+    };
+
+    typeSelector.addEventListener('change', () => {
+        type = typeSelector.value as typeof type;
+        while (frames.length) frames.pop();
+        if (
+            (type === 'image' || type === 'mask') &&
+            !(current instanceof HTMLCanvasElement)
+        ) {
+            const node = h(
+                'canvas',
+                {
+                    width: 1,
+                    height: 1,
+                    style: 'width: 16rem;height: 16rem;',
+                },
+                []
+            ) as HTMLCanvasElement;
+            current.replaceWith(node);
+            current = node;
+            node.style.imageRendering = 'pixelated';
+            node.style.backgroundColor = '#fff';
+        } else if (type === 'text' && !(current instanceof HTMLInputElement)) {
+            const node = h(
+                'input',
+                { type: 'text', disabled: '', value: 'not playing' },
+                []
+            ) as HTMLInputElement;
+            current.replaceWith(node);
+            current = node;
+        }
+        if (current instanceof HTMLCanvasElement) {
+            const ctx = current.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, current.width, current.height);
+        }
+        rerender();
+    });
+
+    let frames: AnimationFrame<string>[] = [];
+    let player = new AnimationPlayer(frames);
+
+    player.callback((frame: string) => {
+        if (current instanceof HTMLInputElement) return (current.value = frame);
+        const str = type === 'mask' ? getMasks()[frame] : getImages()[frame];
+        if (!str) return;
+        let imgormask: Image | ImageMask =
+            type === 'mask' ? parseMask(str) : parseImage(str);
+        let sz = Math.max(imgormask.width, imgormask.height);
+        if (current.width !== sz) {
+            current.width = sz;
+            current.height = sz;
+        }
+        const ctx = current.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, sz, sz);
+        if (type === 'mask')
+            imgormask = applyImageMask(
+                square(imgormask.width, imgormask.height, 0),
+                imgormask
+            );
+        ctx.putImageData(imgToImageData(imgormask), 0, 0);
+    });
+
+    function onChange(ev: InputEvent) {
+        const el = ev.target;
+        if (
+            !(el instanceof HTMLInputElement) &&
+            !(el instanceof HTMLSelectElement)
+        )
+            return;
+        const index = el.dataset.index as any as number;
+        const type = el.dataset.type;
+        const value = type === 'value' ? el.value : Number(el.value);
+        frames[index][type] = value;
+        player.recomputemaxlength();
+    }
+
+    playButton.addEventListener('click', () => {
+        player.toggleplay();
+        playButton.textContent = player.isplaying ? 'stop' : 'play';
+        if (!player.isplaying && current instanceof HTMLInputElement)
+            current.value = 'not playing';
+        if (!player.isplaying && current instanceof HTMLCanvasElement) {
+            const ctx = current.getContext('2d');
+            if (!ctx) return;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, current.width, current.height);
+        }
+    });
+
+    function render(): HTMLDivElement {
+        player.recomputemaxlength();
+        const div = h('div', {}, []) as HTMLDivElement;
+        if (type === 'text') {
+            for (let i = 0; i < frames.length; ++i) {
+                const vali = h(
+                        'input',
+                        {
+                            value: frames[i].value,
+                            type: 'text',
+                            'data-index': i,
+                            'data-type': 'value',
+                        },
+                        []
+                    ),
+                    timei = h(
+                        'input',
+                        {
+                            value: frames[i].time,
+                            type: 'number',
+                            'data-index': i,
+                            'data-type': 'time',
+                        },
+                        []
+                    );
+                vali.addEventListener('change', onChange);
+                timei.addEventListener('change', onChange);
+                const el = h('div', { 'data-index': i, class: 'row' }, [
+                    vali,
+                    timei,
+                ]);
+                div.append(el);
+            }
+        } else {
+            const options =
+                type === 'image'
+                    ? Object.keys(getImages())
+                    : Object.keys(getMasks());
+            if (options.length < 1) return div;
+            for (let i = 0; i < frames.length; ++i) {
+                if (!options.includes(frames[i].value))
+                    frames[i].value = options[0];
+                const select = h(
+                        'select',
+                        { 'data-index': i, 'data-type': 'value' },
+                        options.map((el) =>
+                            h(
+                                'option',
+                                {
+                                    value: el,
+                                    ...(frames[i].value === el
+                                        ? { selected: '' }
+                                        : {}),
+                                },
+                                [text(el)]
+                            )
+                        )
+                    ),
+                    timeInput = h(
+                        'input',
+                        {
+                            type: 'number',
+                            value: frames[i].time,
+                            'data-index': i,
+                            'data-type': 'time',
+                        },
+                        []
+                    );
+                select.addEventListener('change', onChange);
+                timeInput.addEventListener('change', onChange);
+                div.append(row(select, timeInput));
+            }
+        }
+
+        return div;
+    }
+    let currentEl = render();
+    element.append(currentEl);
+
+    function rerender() {
+        const div = render();
+        currentEl.replaceWith(div);
+        currentEl = div;
+    }
+
+    addFrame.addEventListener(
+        'click',
+        () => {
+            if (type === 'text') {
+                const value = prompt('Text');
+                const time = Number(prompt('Time (ms)'));
+                if (!value || isNaN(time) || !isFinite(time) || time < 1)
+                    return;
+                frames.push({ value, time });
+                rerender();
+            } else {
+                const opts =
+                    type === 'image'
+                        ? Object.keys(getImages())
+                        : Object.keys(getMasks());
+                if (opts.length < 1) return;
+                frames.push({
+                    time: 0,
+                    value: opts[0],
+                });
+                rerender();
+            }
+        },
+        { passive: true }
+    );
+}
 window.addEventListener('load', () => {
     setupDrawing();
     setupMasking();
@@ -2635,6 +3030,7 @@ window.addEventListener('load', () => {
     setupEditor();
     setupMenu();
     setupUtils();
+    setupAnimations();
     document.body
         .getElementsByClassName('keybinds')[0]
         ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));
