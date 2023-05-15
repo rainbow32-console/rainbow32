@@ -1,12 +1,14 @@
 import * as esbuild from 'esbuild-wasm';
 import {
-    createNotification,
+    AnimationData,
+    getAnimations,
     getAudios,
     getImages,
     getMasks,
     getTexts,
 } from '.';
 import { Audio, parseAudio } from '../../rainbow32/src/audioUtils';
+import type { Animation } from '../../rainbow32/src/animation';
 import {
     Image,
     ImageMask,
@@ -20,8 +22,9 @@ function stringify(obj1deep: Record<string, any>) {
 
     for (const [k, v] of Object.entries(obj1deep)) {
         str += `${JSON.stringify(k)}: `;
-        if (Array.isArray(v) || v instanceof Array)
+        if (v instanceof Uint8Array)
             str += 'new Uint8Array(' + JSON.stringify([...v.values()]) + ')';
+        else if (v instanceof Array) str += JSON.stringify(v);
         else if (typeof v === 'object' && v) str += stringify(v);
         else str += JSON.stringify(v);
         str += ',';
@@ -42,45 +45,24 @@ export async function compile(code: string) {
     const stringImgs = getImages();
     const stringMasks = getMasks();
     const stringAudios = getAudios();
-    const images: Record<string, Requestify<Image>> = {};
-    const masks: Record<string, Requestify<ImageMask>> = {};
-    const audios: Record<string, Requestify<Audio>> = {};
+    const images: Record<string, Image> = {};
+    const masks: Record<string, ImageMask> = {};
+    const audios: Record<string, Audio> = {};
 
     for (const k of Object.keys(stringImgs)) {
         if (k.startsWith('__screenshot')) continue;
         try {
-            const parsed = parseImage(stringImgs[k]);
-            images[k] = {
-                buf: [...parsed.buf.values()],
-                height: parsed.height,
-                width: parsed.width,
-            };
+            images[k] = parseImage(stringImgs[k]);
         } catch {}
     }
     for (const k of Object.keys(stringMasks)) {
         try {
-            const parsed = parseMask(stringMasks[k]);
-            masks[k] = {
-                buf: [...parsed.buf.values()],
-                height: parsed.height,
-                width: parsed.width,
-            };
+            masks[k] = parseMask(stringMasks[k]);
         } catch {}
     }
     for (const k of Object.keys(stringAudios)) {
         try {
-            const parsed = parseAudio(stringAudios[k]);
-            audios[k] = {
-                channel1instrument: parsed.channel1instrument,
-                channel2instrument: parsed.channel2instrument,
-                channel3instrument: parsed.channel3instrument,
-                channel4instrument: parsed.channel4instrument,
-                length: parsed.length,
-                channel1: [...parsed.channel1.values()],
-                channel2: [...parsed.channel2.values()],
-                channel3: [...parsed.channel3.values()],
-                channel4: [...parsed.channel4.values()],
-            };
+            audios[k] = parseAudio(stringAudios[k]);
         } catch {}
     }
 
@@ -91,17 +73,15 @@ export async function compile(code: string) {
             audios
         )};const d=(globalThis as any);const e=${JSON.stringify(
             getTexts()
-        )};d.getimage=(path:any)=>a[path];d.getmask=(path:any)=>b[path];d.getaudio=(path:any)=>c[path];d.getstring=(path:any)=>e[path];})();\n${code}`
+        )};const f=${formatAnimations(
+            getAnimations()
+        )};d.getimage=(path:any)=>a[path];d.getmask=(path:any)=>b[path];d.getaudio=(path:any)=>c[path];d.getstring=(path:any)=>e[path];d.getanimation=(path:any)=>f[path]})();\n${code}`
     ).catch((err) => {
         globalThis.err = err;
         let msg = '' + err;
         msg = msg.replaceAll(
             /<stdin>:([0-9]+):([0-9]+)/g,
-            (
-                _str: string,
-                ln: string,
-                char: string,
-            ) => {
+            (_str: string, ln: string, char: string) => {
                 return 'game.ts:' + (Number(ln) - 1) + ':' + char;
             }
         );
@@ -158,4 +138,26 @@ export async function compileTypescript(code: string): Promise<string> {
         loader: 'ts',
     });
     return res.code;
+}
+
+function formatAnimations(animations: Record<string, AnimationData>): string {
+    let newanimations: Record<string, Animation<any>> = {};
+    const images = getImages();
+    const masks = getMasks();
+    for (const k of Object.keys(animations)) {
+        if (animations[k].type === 'text')
+            newanimations[k] = animations[k].animation;
+        else if (animations[k].type === 'image')
+            newanimations[k] = animations[k].animation.map((el) => ({
+                time: el.time,
+                value: parseImage(images[el.value]),
+            }));
+        else if (animations[k].type === 'mask')
+            newanimations[k] = animations[k].animation.map((el) => ({
+                time: el.time,
+                value: parseMask(masks[el.value]),
+            }));
+    }
+
+    return stringify(newanimations);
 }
