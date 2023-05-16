@@ -1,5 +1,6 @@
 import { component, gameobject } from '../gameObject';
 import { SceneManager } from '../SceneManager';
+import { getCurrentImage } from '../utils';
 
 interface Props {
     width: number;
@@ -13,8 +14,8 @@ function getBounds(obj: gameobject) {
         return {
             startX: obj.transform.position.x,
             startY: obj.transform.position.y,
-            endX: obj.transform.position.x + obj.image.width,
-            endY: obj.transform.position.y + obj.image.height,
+            endX: obj.transform.position.x + getCurrentImage(obj).width,
+            endY: obj.transform.position.y + getCurrentImage(obj).height,
         };
     }
     return {
@@ -29,8 +30,8 @@ class boxCollision implements component<Props> {
     readonly name = 'boxcollider';
     init(cfg: Partial<Props>, obj: gameobject) {
         return {
-            width: cfg.width || obj.image.width,
-            height: cfg.height || obj.image.height,
+            width: cfg.width || (Array.isArray(obj.image) ? obj.image[0].value : obj.image).width,
+            height: cfg.height || (Array.isArray(obj.image) ? obj.image[0].value : obj.image).height,
             oldcollisions: [],
         };
     }
