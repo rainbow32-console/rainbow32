@@ -130,12 +130,13 @@ export function setCurrentPalette(palette: ColorPalette) {
 }
 
 export function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
-    if (color === 0xff) return {
-        r: 0,
-        g: 0,
-        b: 0,
-        a: 0,
-    }
+    if (color === 0xff)
+        return {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
     return parsedPalette[color];
 }
 
@@ -372,8 +373,8 @@ export function putImage(x: number, y: number, image: Image) {
         for (let w = 0; w < image.width; ++w) {
             if (x + w >= WIDTH || x + w < 0) continue;
             const off = (h + y) * WIDTH + x + w;
-            if (image.buf[h * image.width + w] === 0xff) continue;
-            memory[off + 1] = image.buf[h * image.width + w];
+            const col = getTranslatedColor(image.buf[h * image.width + w]);
+            if (col !== 0xff) memory[off + 1] = col;
         }
     }
 }
@@ -388,7 +389,7 @@ export function setPixel(x: number, y: number, color: number | string) {
     if (x < 0) return;
     if (y < 0) return;
     isDirty = true;
-    memory[y * WIDTH + x + 1] = color;
+    memory[y * WIDTH + x + 1] = getTranslatedColor(color);
 }
 
 export function putImageRaw(x: number, y: number, image: Image) {
@@ -400,7 +401,9 @@ export function putImageRaw(x: number, y: number, image: Image) {
         for (let w = 0; w < image.width; ++w) {
             if (x + w >= WIDTH || x + w < 0) continue;
             const off = (h + y) * WIDTH + x + w;
-            memory[off + 1] = image.buf[h * image.width + w];
+            memory[off + 1] = getTranslatedColor(
+                image.buf[h * image.width + w]
+            );
         }
     }
 }
@@ -532,6 +535,28 @@ export function line(
             y1 = y1 + sy;
         }
         if (x1 < 0 || x1 >= WIDTH || y1 < 0 || y1 >= HEIGHT) continue;
-        memory[y1 * WIDTH + x1 + 1] = col;
+        memory[y1 * WIDTH + x1 + 1] = getTranslatedColor(col);
     }
+}
+
+const colorTranslations: Record<number, number> = {};
+
+export function setPaletteTranslation(color1?: number, color2?: number) {
+    if (!isValidColor(color1 || 0))
+        throw new Error('color1 is not a valid color');
+    if (!isValidColor(color2 || 0))
+        throw new Error('color2 is not a valid color');
+
+    if (color1 === undefined)
+        for (const k in colorTranslations) delete colorTranslations[k];
+    else colorTranslations[color1] = color2 === undefined ? color1 : color2;
+}
+
+function getTranslatedColor(color: number): number {
+    if (color in colorTranslations) return colorTranslations[color];
+    return color;
+}
+
+export function getColorTranslations(): Record<number, number> {
+    return colorTranslations;
 }
