@@ -1,3 +1,5 @@
+import { shouldBreak } from './index';
+
 export interface AnimationFrame<T> {
     time: number;
     value: T;
@@ -23,8 +25,8 @@ export class AnimationPlayer<T> {
     private ani: Animation<T>;
     private maxLength: number;
     private startTime: number;
-    private lastFrame: T|undefined = undefined;
-    private cb: ((frame: T)=>void)|undefined = undefined;
+    private lastFrame: T | undefined = undefined;
+    private cb: ((frame: T) => void) | undefined = undefined;
 
     constructor(animation: Animation<T>) {
         this.maxLength = animation.reduce((a, b) => a + b.time, 0);
@@ -48,10 +50,10 @@ export class AnimationPlayer<T> {
         this.maxLength = this.ani.reduce((a, b) => a + b.time, 0);
     }
 
-    getframe(): T|undefined {
+    getframe(): T | undefined {
         if (this.startTime < 0 || this.ani.length < 1) return undefined;
         let time = Date.now() % this.maxLength;
-        
+
         for (let i = 0; i < this.ani.length; ++i) {
             time -= this.ani[i].time;
             if (time < 1) return this.ani[i].value;
@@ -65,14 +67,14 @@ export class AnimationPlayer<T> {
         this.stop();
     }
 
-    callback(cb?: ((frame: T) => void)|undefined) {
-        if (this.cb === undefined) requestAnimationFrame(this.rendererCallback.bind(this));
+    callback(cb?: ((frame: T) => void) | undefined) {
+        if (this.cb === undefined)
+            requestAnimationFrame(this.rendererCallback.bind(this));
         this.cb = cb;
-
     }
 
     private rendererCallback() {
-        if (!this.cb) return;
+        if (!this.cb || shouldBreak()) return;
         requestAnimationFrame(this.rendererCallback.bind(this));
         const curFrame = this.getframe();
         if (this.lastFrame !== curFrame) {
@@ -99,7 +101,7 @@ export class animationBuilder<T> {
     }
 
     addframe(value: T, time: number) {
-        this.ani.push({value,time});
+        this.ani.push({ value, time });
         return this;
     }
 
