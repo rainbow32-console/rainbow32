@@ -1,4 +1,4 @@
-import { HEIGHT, memory, WIDTH } from '.';
+import { HEIGHT, memory, WIDTH } from './index';
 import { distance } from './math';
 
 export type ColorPalette = [
