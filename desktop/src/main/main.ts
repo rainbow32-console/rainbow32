@@ -106,7 +106,7 @@ function pressKey(key: string) {
     keyCode: key.toUpperCase(),
   });
   mainWindow.webContents.sendInputEvent({
-    type: 'char',
+    type: 'keyUp',
     keyCode: key.toUpperCase(), // that works surprisingly even with modifier keys like Shift, which gets turned into SHIFT
   });
 }
