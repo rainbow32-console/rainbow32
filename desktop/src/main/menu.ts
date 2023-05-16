@@ -144,29 +144,29 @@ export default class MenuBuilder {
       label: 'Help',
       submenu: [
         {
-          label: 'Learn More',
+          label: 'Wiki',
           click() {
-            shell.openExternal('https://electronjs.org');
+            shell.openExternal('https://github.com/rainbow32-console/rainbow32/wiki');
           },
         },
         {
-          label: 'Documentation',
+          label: 'API (constants & functions)',
           click() {
             shell.openExternal(
-              'https://github.com/electron/electron/tree/main/docs#readme'
+              'https://github.com/rainbow32-console/rainbow32/wiki/API-(constants-&-functions)'
             );
           },
         },
         {
-          label: 'Community Discussions',
+          label: 'API (Types)',
           click() {
-            shell.openExternal('https://www.electronjs.org/community');
+            shell.openExternal('https://github.com/rainbow32-console/rainbow32/wiki/API-(Types)');
           },
         },
         {
           label: 'Search Issues',
           click() {
-            shell.openExternal('https://github.com/electron/electron/issues');
+            shell.openExternal('https://github.com/rainbow32-console/rainbow32/issues');
           },
         },
       ],
@@ -237,29 +237,29 @@ export default class MenuBuilder {
         label: 'Help',
         submenu: [
           {
-            label: 'Learn More',
+            label: 'Wiki',
             click() {
-              shell.openExternal('https://electronjs.org');
+              shell.openExternal('https://github.com/rainbow32-console/rainbow32/wiki');
             },
           },
           {
-            label: 'Documentation',
+            label: 'API (constants & functions)',
             click() {
               shell.openExternal(
-                'https://github.com/electron/electron/tree/main/docs#readme'
+                'https://github.com/rainbow32-console/rainbow32/wiki/API-(constants-&-functions)'
               );
             },
           },
           {
-            label: 'Community Discussions',
+            label: 'API (Types)',
             click() {
-              shell.openExternal('https://www.electronjs.org/community');
+              shell.openExternal('https://github.com/rainbow32-console/rainbow32/wiki/API-(Types)');
             },
           },
           {
             label: 'Search Issues',
             click() {
-              shell.openExternal('https://github.com/electron/electron/issues');
+              shell.openExternal('https://github.com/rainbow32-console/rainbow32/issues');
             },
           },
         ],
