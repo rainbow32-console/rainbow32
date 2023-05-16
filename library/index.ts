@@ -23,7 +23,7 @@ export interface fn {
     readonly name: string;
     readonly length: number;
 }
-export type Function = fn;
+export interface Function extends fn {};
 export interface String {
     length: number;
     repeat(amount: number): string;
@@ -36,7 +36,7 @@ export interface array<t> {
     pop(): void;
     shift(...values: t[]): void;
 }
-export type Array<t> = array<t>;
+export interface Array<t> extends array<t> {};
 export interface promiselike<t> {
     /**
      * attaches callbacks for the resolution and/or rejection of the promise.
@@ -55,7 +55,7 @@ export interface promiselike<t> {
             | null
     ): promiselike<tres1 | tres2>;
 }
-export interface Promise<t> {
+export interface promise<t> {
     /**
      * attaches callbacks for the resolution and/or rejection of the promise.
      * @param onfulfilled the callback to execute when the promise is resolved.
@@ -93,8 +93,8 @@ type awaited<t> = t extends null | undefined
         : never
     : t;
 
-export type promise<t> = Promise<t>;
-export const Promise: {
+export interface Promise<t> extends promise<t> {};
+export const promise: {
     /**
      * creates a promise that is resolved with an array of results when all of the provided promises
      * resolve, or rejected when any promise is rejected.
@@ -144,7 +144,7 @@ export const Promise: {
      */
     resolve<t>(value: t | promiselike<t>): promise<t>;
 } = globalThis.Promise as any;
-export const promise = Promise;
+export const Promise = promise;
 export const globalthis = globalThis as any;
 export interface arraylike<t> {
     readonly length: number;
