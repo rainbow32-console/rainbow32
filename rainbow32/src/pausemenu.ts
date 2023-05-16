@@ -8,7 +8,14 @@ import {
     WIDTH,
 } from '.';
 import { setVolume, volume } from './audioUtils';
-import { cls, markAsDirty, putImage, square } from './imageUtils';
+import {
+    cls,
+    getColorTranslations,
+    markAsDirty,
+    putImage,
+    setPaletteTranslation,
+    square,
+} from './imageUtils';
 import { colors } from './namespacedcolors';
 import { calculateWidth, writeText } from './text';
 
@@ -90,8 +97,11 @@ export function setEntry(index: number, entry: MenuEntry | undefined) {
 export function removeEntry(index: number) {
     entries = entries.filter((_, i) => i !== index);
 }
+let lastColorPalette: Record<number, number> = {};
 export function resetSelected() {
     selected = 0;
+    lastColorPalette = {...getColorTranslations()};
+    setPaletteTranslation();
     old_image_buf = new Uint8Array(memory.length);
     for (let i = 1; i < memory.length; ++i) {
         old_image_buf[i - 1] = memory[i];
@@ -99,6 +109,8 @@ export function resetSelected() {
 }
 export function putOldImage() {
     markAsDirty();
+    for (const k in lastColorPalette)
+        setPaletteTranslation(Number(k), lastColorPalette[k]);
     for (let i = 0; i < old_image_buf.length; ++i) {
         memory[i + 1] = old_image_buf[i];
     }
