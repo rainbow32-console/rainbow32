@@ -2,7 +2,7 @@ import { debugData, isCollectingDebugData } from '.';
 import { gameobject } from './gameObject';
 import { removeParticles } from './particleSystem';
 
-export interface userscene<t> {
+export interface userscene<t extends Record<string, string>> {
     beforeinit(scene: Scene<t>): t;
     afterinit?(config: t, scene: Scene<t>): void;
     beforeupdate?(config: t, scene: Scene<t>, dt: number): void;
@@ -52,6 +52,7 @@ export class Scene<T extends Record<string, any>> {
 
     addobjects(...obj: gameobject[]) {
         this.objects.push(...obj);
+        for (let i = 0; i < obj.length; ++i) obj[i].init();
     }
 
     getobjectbyname(name: string): gameobject | undefined {
@@ -63,19 +64,35 @@ export class Scene<T extends Record<string, any>> {
     }
 
     removeobject(object: gameobject) {
-        this.objects = this.objects.filter((el) => el !== object);
+        this.objects = this.objects.filter((el) => {
+            if (el !== object) return true;
+            el.remove();
+            return false;
+        });
     }
 
     removeobjects(...objects: gameobject[]) {
-        this.objects = this.objects.filter((el) => !objects.includes(el));
+        this.objects = this.objects.filter((el) => {
+            if (!objects.includes(el)) return true;
+            el.remove();
+            return false;
+        });
     }
 
     removeobjectsbyname(name: string) {
-        this.objects = this.objects.filter((el) => el.name !== name);
+        this.objects = this.objects.filter((el) => {
+            if (el.name !== name) return true;
+            el.remove()
+            return false;
+        });
     }
 
     removeobjectsbynames(...names: string[]) {
-        this.objects = this.objects.filter((el) => !names.includes(el.name));
+        this.objects = this.objects.filter((el) => {
+            if (!names.includes(el.name)) return true;
+            el.remove();
+            return false;
+        });
     }
 }
 
@@ -124,7 +141,7 @@ export const SceneManager = {
         debugData['#Game Objects'] =
             scenes[currentlySelected]?.objects.length.toString() || '0';
     },
-    getscene<T>(): Scene<T> | undefined {
+    getscene<T extends Record<string, string>>(): Scene<T> | undefined {
         return scenes[currentlySelected];
     },
 };
