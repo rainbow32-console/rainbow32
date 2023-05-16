@@ -20,6 +20,7 @@ import {
     removeDirtyMark,
     setCurrentPalette,
     setOffset,
+    setPaletteTranslation,
 } from './imageUtils';
 import { removeParticles, updateParticles } from './particleSystem';
 import {
@@ -695,6 +696,7 @@ export function stopGame(): Promise<void> {
     if (!currentGame) return new Promise((res) => res());
     const _game = currentGame;
     clearAllEffectsAndRenderer();
+    setPaletteTranslation();
     _game.remove?.();
     setCurrentPalette(defaultPalette);
     SceneManager.setscenes([]);
