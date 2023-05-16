@@ -12,7 +12,7 @@ import { distance, lerp } from './math';
 import { readFromFile, storeToFile } from './saveFile';
 import { Scene, SceneManager } from './SceneManager';
 
-import { download, isOnTimeout, timeout } from './utils';
+import { download, getCurrentImage, getCurrentImageMask, isOnTimeout, timeout } from './utils';
 import {
     addCharacterMask,
     applyCharacterMap,
@@ -25,6 +25,7 @@ import {
 import { addParticle, removeParticle, removeParticles } from './particleSystem';
 import { removeEntry, resetEntries, setEntry } from './pausemenu';
 import { applyEffect, applyRenderer, createEffect, createRenderer, removeEffect, removeRenderer } from './effects';
+import { AnimationPlayer, animationBuilder, getAnimationFrame } from './animation';
 
 function expose(name: string, variable: any) {
     Object.defineProperty(globalThis, name, {
@@ -64,6 +65,8 @@ export function exposeToWorld() {
     expose('download', download);
     expose('isontimeout', isOnTimeout);
     expose('timeout', timeout);
+    expose('getcurrentimage', getCurrentImage);
+    expose('getcurrentimagemask', getCurrentImageMask);
 
     // default components
     expose('imagerenderer', ImageRenderer);
@@ -150,4 +153,9 @@ export function exposeToWorld() {
     expose('removerenderer', removeRenderer);
     expose('effects', {screenshake, oldcolors: oldColors})
     expose('renderers', {bwcolors: blackwhiteColorRenderer})
+
+    // animations
+    expose('animationbuilder', animationBuilder);
+    expose('animationplayer', AnimationPlayer);
+    expose('getanimationframe', getAnimationFrame);
 }

@@ -1,3 +1,29 @@
+export interface fn {
+    /**
+     * calls the function, substituting the specified object for the this value of the function, and the specified array for the arguments of the function.
+     * @param thisArg the object to be used as the this object.
+     * @param argArray a set of arguments to be passed to the function.
+     */
+    apply(this: fn, thisarg: any, argarray?: any): any;
+
+    /**
+     * calls a method of an object, substituting another object for the current object.
+     * @param thisarg the object to be used as the current object.
+     * @param argarray a list of arguments to be passed to the method.
+     */
+    call(this: fn, thisarg: any, ...argarray: any[]): any;
+
+    /**
+     * for a given function, creates a bound function that has the same body as the original function.
+     * the this object of the bound function is associated with the specified object, and has the specified initial parameters.
+     * @param thisArg an object to which the this keyword can refer inside the new function.
+     * @param argArray a list of arguments to be passed to the new function.
+     */
+    bind(this: fn, thisarg: any, ...argarray: any[]): any;
+    readonly name: string;
+    readonly length: number;
+}
+export type Function = fn;
 export interface String {
     length: number;
     repeat(amount: number): string;
@@ -259,7 +285,7 @@ export const entries = (object as any).entries as <T>(
 export const values = (object as any).values as <T>(
     o: { [s: string]: T } | arraylike<T>
 ) => T[];
-export function rnd<t>(value: t[]): t[];
+export function rnd<t>(value: t[]): t;
 export function rnd(value: string): string;
 export function rnd(value: number): number;
 export function rnd<t>(value: number | string | t[]): number | string | t {
@@ -636,8 +662,8 @@ export interface component<config = void> {
 
 export interface gameobjopts {
     name: string;
-    image: image | string;
-    mask?: imagemask | string;
+    image: image | animation<image> | string;
+    mask?: imagemask | animation<imagemask> | string;
     components?: componententry<any>[];
     opacity?: number;
     transform?: partial<transform>;
@@ -650,9 +676,10 @@ type componententry<t> = { component: component<t>; config?: partial<t> };
 export interface gameobject {
     new (opts: gameobjopts): gameobject;
     readonly name: string;
+    readonly lifetime: number;
     transform: transform;
-    image: image;
-    mask?: imagemask;
+    image: image | animation<image>;
+    mask?: imagemask | animation<imagemask>;
     active: boolean;
     addcomponents<t>(components: componententry<t>[]): void;
     removecomponent(component: string): void;
@@ -904,8 +931,7 @@ export function print(
             infinity,
             { color, background, spaceWidth: spacewidth, centered }
         );
-        if (lines.length === 1 && y === lines.length - 1)
-            cursor(_lines[0].end + 1, _lines[0].y);
+        if (lines.length === 1) cursor(_lines[0].end + 1, _lines[0].y);
         else cursor(0, cursor_pos.y + 6);
     }
 }
@@ -1139,3 +1165,59 @@ export const effects = importExposed('effects') as {
 export const renderers = importExposed('renderers') as {
     bwcolors: renderer<number>;
 };
+
+export interface animationframe<t> {
+    time: number;
+    value: t;
+}
+export type animation<t> = animationframe<t>[];
+interface animationplayer<t> {
+    start(): void;
+    play(): void;
+    stop(): void;
+    recomputemaxlength(): void;
+    getframe(): t | undefined;
+    setanimations(animation: animation<t>): void;
+    callback(cb?: ((frame: t) => void) | undefined): void;
+    toggleplay(): void;
+    readonly isplaying: boolean;
+}
+interface animationbuilder<t> {
+    addframe(value: t, time: number): animationbuilder<t>;
+    build(): animation<t>;
+}
+export const getanimationframe = importExposed('getanimationframe') as <t>(
+    animation: animation<t>,
+    timeFromStart: number
+) => t | undefined;
+export const animationplayer = importExposed('animationplayer') as {
+    new <t>(animation: animation<t>): animationplayer<t>;
+    prototype: animationplayer<any>;
+} & fn;
+export const animationbuilder = importExposed('animationbuilder') as {
+    new <t>(): animationbuilder<t>;
+} & fn;
+export function vec2(x: number, y: number): vec2 {
+    return { x, y };
+}
+export function vec2i(x: number, y: number): vec2 {
+    return { x: flr(x), y: flr(y) };
+}
+export function vec3(x: number, y: number, z: number): vec3 {
+    return { x, y, z };
+}
+export function vec3i(x: number, y: number, z: number): vec3 {
+    return { x: flr(x), y: flr(y), z: flr(z) };
+}
+export function vec4(x: number, y: number, z: number, w: number): vec4 {
+    return { x, y, z, w };
+}
+export function vec4i(x: number, y: number, z: number, w: number): vec4 {
+    return { x: flr(x), y: flr(y), z: flr(z), w: flr(w) };
+}
+export const getcurrentimage = importExposed('getcurrentimage') as (
+    obj: gameobject
+) => image;
+export const getcurrentimagemask = importExposed('getcurrentimagemask') as (
+    obj: gameobject
+) => imagemask | undefined;

@@ -29,6 +29,7 @@ export function calculateBounds(
         centered = false,
     }: { spaceWidth?: number; centered?: boolean } = {}
 ): Line[] {
+    text = ''+text;
     const lines: Line[] = [];
     let origX = x;
     spaceWidth ||= 5;
@@ -79,6 +80,7 @@ export function calculateBounds(
     return lines;
 }
 export function calculateWidth(text: string, spaceWidth?: number): number {
+    text = ''+text;
     let maxLineWidth = 0;
     spaceWidth ||= 5;
     spaceWidth++;
@@ -119,6 +121,7 @@ export function writeText(
         centered?: boolean;
     } = {}
 ): Line[] {
+    text = ''+text;
     spaceWidth ||= 5;
     const lines: { y: number; start: number; end: number }[] = [];
 

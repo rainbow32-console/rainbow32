@@ -1,3 +1,4 @@
+import { Animation } from './animation';
 import { debugData, isCollectingDebugData } from '.';
 import { ImageRenderer } from './components/imageRenderer';
 import { Image, ImageMask, parseImage, parseMask } from './imageUtils';
@@ -33,8 +34,8 @@ export interface component<Config = void> {
 
 export interface GameObjectOptions {
     name: string;
-    image: Image | string;
-    mask?: ImageMask | string;
+    image: Image | Animation<Image> | string;
+    mask?: ImageMask | Animation<ImageMask> | string;
     components?: componententry<any>[];
     opacity?: number;
     transform?: Partial<Transform>;
@@ -47,8 +48,8 @@ type componententry<t> = { component: component<t>; config?: Partial<t> };
 
 export class gameobject {
     transform: Transform;
-    image: Image;
-    mask?: ImageMask;
+    image: Image|Animation<Image>;
+    mask?: ImageMask|Animation<ImageMask>;
     private components: Record<string, component<any>> = {};
     private componentInitData: Record<string, any> = {};
     private componentData: Record<string, any> = {};
@@ -60,6 +61,11 @@ export class gameobject {
         { cb: (...args: any[]) => void; once: boolean }[]
     > = {};
     private initOpts: GameObjectOptions;
+    private _timeFromInit=-1;
+    get lifetime() {
+        if (this._timeFromInit < 0) return -1;
+        return Date.now()-this._timeFromInit;
+    }
 
     constructor(opts: GameObjectOptions) {
         this.initOpts = opts;
@@ -152,6 +158,7 @@ export class gameobject {
     }
 
     remove() {
+        this._timeFromInit = -1;
         this.emitevent('remove', []);
         const keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
@@ -163,6 +170,7 @@ export class gameobject {
     }
 
     init() {
+        this._timeFromInit = Date.now();
         this.emitevent('init', []);
         const keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
