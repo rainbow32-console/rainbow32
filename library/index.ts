@@ -844,8 +844,12 @@ export function font(font?: font | string) {
         textutils.applycharmap(font);
     }
 }
-export function pal(palette?: colorpalette) {
-    imageutils.setcurrentpalette(palette || (imageutils.defaultpalette as any));
+export const pal = importExposed('setpalettetranslation') as (
+    color1?: number,
+    color2?: number
+) => void;
+export function palt(color: number, transparent: boolean) {
+    pal(color, transparent ? 0xff : color);
 }
 export function camera(x?: number, y?: number) {
     imageutils.setoffset(x || 0, y || 0);
