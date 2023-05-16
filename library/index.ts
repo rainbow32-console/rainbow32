@@ -28,7 +28,7 @@ export interface String {
     length: number;
     repeat(amount: number): string;
 }
-export interface Array<t> {
+export interface array<t> {
     readonly length: number;
     [index: number]: t;
     push(...values: t[]): number;
@@ -36,6 +36,7 @@ export interface Array<t> {
     pop(): void;
     shift(...values: t[]): void;
 }
+export type Array<t> = array<t>;
 export interface promiselike<t> {
     /**
      * attaches callbacks for the resolution and/or rejection of the promise.
@@ -100,7 +101,7 @@ export const Promise: {
      * @param values an iterable of promises.
      * @returns a new promise.
      */
-    all<t>(values: promiselike<t>): promise<awaited<t>[]>;
+    all<t>(values: promiselike<t>[]): promise<awaited<t>[]>;
 
     /**
      * Creates a Promise that is resolved or rejected when any of the provided Promises are resolved
@@ -108,7 +109,7 @@ export const Promise: {
      * @param values An iterable of Promises.
      * @returns A new Promise.
      */
-    race<T>(values: promiselike<T>): promise<awaited<T>>;
+    race<t>(values: promiselike<t>[]): promise<awaited<t>>;
 
     /**
      * creates a new promise.
@@ -145,13 +146,13 @@ export const Promise: {
 } = globalThis.Promise as any;
 export const promise = Promise;
 export const globalthis = globalThis as any;
-export interface arraylike<T> {
+export interface arraylike<t> {
     readonly length: number;
-    readonly [n: number]: T;
+    readonly [n: number]: t;
 }
-export interface arraylikereadable<T> {
+export interface arraylikereadable<t> {
     readonly length: number;
-    [n: number]: T;
+    [n: number]: t;
 }
 export interface typedarrayconstructor<t> {
     readonly prototype: t;
@@ -177,11 +178,11 @@ export interface typedarrayconstructor<t> {
      * @param mapfn A mapping function to call on every element of the array.
      * @param thisarg Value of 'this' used to invoke the mapfn.
      */
-    from<T>(
-        arraylike: arraylike<T>,
-        mapfn: (v: T, k: number) => number,
+    from<t>(
+        arraylike: arraylike<t>,
+        mapfn: (v: t, k: number) => number,
         thisarg?: any
-    ): T;
+    ): t;
 }
 export interface arraybuffer {
     /**
@@ -259,16 +260,16 @@ function importExposed(name: string): any {
     return (globalThis as any)[name];
 }
 
-export const sqrt = Math.sqrt;
-export const flr = Math.floor;
-export const ceil = Math.ceil;
-export const abs = Math.abs;
-export const sin = Math.sin;
-export const cos = Math.cos;
-export const tan = Math.tan;
-export const atan2 = Math.atan2;
-export const max = Math.max;
-export const min = Math.min;
+export const sqrt = Math.sqrt as (x: number) => number;
+export const flr = Math.floor as (x: number) => number;
+export const ceil = Math.ceil as (x: number) => number;
+export const abs = Math.abs as (x: number) => number;
+export const sin = Math.sin as (x: number) => number;
+export const cos = Math.cos as (x: number) => number;
+export const tan = Math.tan as (x: number) => number;
+export const atan2 = Math.atan2 as (x: number) => number;
+export const max = Math.max as (...values: number[]) => number;
+export const min = Math.min as (...values: number[]) => number;
 export const mid = (x: number, y: number, z: number) =>
     Math.min(z, Math.max(x, y));
 export const sgn = (x: number) => (x < 0 ? -1 : 1);
@@ -276,23 +277,29 @@ export const sgn = (x: number) => (x < 0 ? -1 : 1);
 export const math = Math;
 const object = Object;
 export const keys = object.keys as (val: object) => string[];
-export const pairs = (object as any).entries as <T>(
-    o: { [s: string]: T } | arraylike<T>
-) => [string, T][];
-export const entries = (object as any).entries as <T>(
-    o: { [s: string]: T } | arraylike<T>
-) => [string, T][];
-export const values = (object as any).values as <T>(
-    o: { [s: string]: T } | arraylike<T>
-) => T[];
-export function rnd<t>(value: t[]): t;
+export const pairs = (object as any).entries as <t>(
+    o: { [s: string]: t } | arraylike<t>
+) => [string, t][];
+export const entries = (object as any).entries as <t>(
+    o: { [s: string]: t } | arraylike<t>
+) => [string, t][];
+export const values = (object as any).values as <t>(
+    o: { [s: string]: t } | arraylike<t>
+) => t[];
+export function rnd<t>(value: arraylike<t>): t;
 export function rnd(value: string): string;
 export function rnd(value: number): number;
-export function rnd<t>(value: number | string | t[]): number | string | t {
+export function rnd<t>(
+    value: number | string | arraylike<t>
+): number | string | t {
     if (typeof value === 'number') {
         value++;
-        return flr(Math.random() * value);
-    } else if (isarr(value) || typeof value === 'string') {
+        return Math.random() * value;
+    } else if (
+        isarr(value) ||
+        typeof value === 'string' ||
+        typeof value === 'object'
+    ) {
         return value[flr(Math.random() * value.length)] as any;
     }
     throw new Error('unreachable');
@@ -316,9 +323,9 @@ export const storetofile = importExposed('storetofile') as (
     obj: any,
     prefix?: string
 ) => void;
-export const readfromfile = importExposed('readfromfile') as <T>(
+export const readfromfile = importExposed('readfromfile') as <t>(
     prefix?: string
-) => T | undefined;
+) => t | undefined;
 export const addparticle = importExposed('addparticle') as (
     life: number,
     pos: vec2,
@@ -436,9 +443,13 @@ export const screen = {
     height: importExposed('height') as number,
     width: importExposed('width') as number,
 };
-export const scene = importExposed('scene') as scene;
+export const scene = importExposed('scene') as {
+    new <t>(scene: userscene<t>): scene;
+};
 export const scenemanager = importExposed('scenemanager') as scenemanager;
-export const gameobject = importExposed('gameobject') as gameobject;
+export const gameobject = importExposed('gameobject') as {
+    new (opts: gameobjopts): gameobject;
+};
 export const createcomponent = importExposed('createcomponent') as <t>(
     component: component<t>,
     data?: partial<t>
@@ -506,14 +517,12 @@ export const textutils = {
     ) => line[],
 };
 
-export type gfxinstrument = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type instrument =
     | 'square-wave'
     | 'sine-wave'
     | 'triangle-wave'
     | 'sawtooth-wave'
-    | 'noise'
-    | `gfx${gfxinstrument}`;
+    | 'noise';
 
 export interface audio {
     channel1: Uint8Array;
@@ -633,7 +642,6 @@ export interface userscene<t> {
     name: string;
 }
 export interface scene {
-    new <t>(scene: userscene<t>): scene;
     objects: gameobject[];
     addobjects(...obj: gameobject[]): void;
     getobjectbyname(name: string): gameobject | undefined;
@@ -674,7 +682,6 @@ export interface gameobjopts {
 
 type componententry<t> = { component: component<t>; config?: partial<t> };
 export interface gameobject {
-    new (opts: gameobjopts): gameobject;
     readonly name: string;
     readonly lifetime: number;
     transform: transform;
@@ -683,10 +690,10 @@ export interface gameobject {
     active: boolean;
     addcomponents<t>(components: componententry<t>[]): void;
     removecomponent(component: string): void;
-    getcomponent<T extends component<any>>(component: string): T | undefined;
-    getcomponentdata<T extends component<any>>(
+    getcomponent<t extends component<any>>(component: string): t | undefined;
+    getcomponentdata<t extends component<any>>(
         component: string
-    ): Required<Parameters<T['init']>[0]> | undefined;
+    ): Required<Parameters<t['init']>[0]> | undefined;
     off(name: string, cb: (obj: gameobject, ...args: any[]) => void): void;
     once(name: string, cb: (obj: gameobject, ...args: any[]) => void): void;
     on(name: string, cb: (obj: gameobject, ...args: any[]) => void): void;
@@ -832,17 +839,13 @@ export function isarr(value: any) {
     return Array.isArray(value);
 }
 export function font(font?: font | string) {
-    if (!font) {
-        textutils.clearcharmap();
-        textutils.applycharmap(fonts.default);
-    } else if (typeof font !== 'object') {
-        if (!fonts[font]) throw new Error('no font with the name ' + font);
-        textutils.clearcharmap();
-        textutils.applycharmap(fonts[font]);
-    } else {
-        textutils.clearcharmap();
-        textutils.applycharmap(font);
-    }
+    if (typeof font !== 'object' && font && !fonts[font])
+        throw new error('no font with the name ' + font);
+
+    textutils.clearcharmap();
+    textutils.applycharmap(
+        !font ? fonts.default : typeof font !== 'object' ? fonts[font] : font
+    );
 }
 export const pal = importExposed('setpalettetranslation') as (
     color1?: number,
@@ -867,7 +870,6 @@ export const cls = imageutils.cls;
 export const setp = imageutils.setpixel;
 export interface gamefile {
     name: string;
-    palette?: colorpalette;
 
     init?(): void;
     update?(dt: number): void;
@@ -1084,27 +1086,27 @@ export function type(value: any) {
 export const line = imageutils.line;
 export const getcolorhex = imageutils.getcolor;
 
-interface effect<T> {
-    update(dt: number, val: T, effect: effect<T> & { value: T }): void;
-    init(val: T, effect: effect<T> & { value: T }): void;
-    remove(val: T, effect: effect<T> & { value: T }): void;
+interface effect<t> {
+    update(dt: number, val: t, effect: effect<t> & { value: t }): void;
+    init(val: t, effect: effect<t> & { value: t }): void;
+    remove(val: t, effect: effect<t> & { value: t }): void;
     name: string;
 }
-type effectfunction<T> = effect<T>['update'];
+type effectfunction<t> = effect<t>['update'];
 
 type color = record<'r' | 'g' | 'b' | 'a', number>;
-interface renderer<T> {
+interface renderer<t> {
     update(
         realcolor: color,
         color: number,
-        val: T,
-        renderer: renderer<T> & { value: T }
+        val: t,
+        renderer: renderer<t> & { value: t }
     ): color;
-    init(val: T, renderer: renderer<T> & { value: T }): void;
-    remove(val: T, renderer: renderer<T> & { value: T }): void;
+    init(val: t, renderer: renderer<t> & { value: t }): void;
+    remove(val: t, renderer: renderer<t> & { value: t }): void;
     name: string;
 }
-type rendererfunction<T> = renderer<T>['update'];
+type rendererfunction<t> = renderer<t>['update'];
 
 export const createeffect = importExposed('createeffect') as <t>(
     name: string,
@@ -1192,7 +1194,7 @@ interface animationbuilder<t> {
 }
 export const getanimationframe = importExposed('getanimationframe') as <t>(
     animation: animation<t>,
-    timeFromStart: number
+    timefromstart: number
 ) => t | undefined;
 export const animationplayer = importExposed('animationplayer') as {
     new <t>(animation: animation<t>): animationplayer<t>;
