@@ -12,7 +12,7 @@ import { distance, lerp } from './math';
 import { readFromFile, storeToFile } from './saveFile';
 import { Scene, SceneManager } from './SceneManager';
 
-import { download, isOnTimeout, timeout } from './utils';
+import { download, getCurrentImage, getCurrentImageMask, isOnTimeout, timeout } from './utils';
 import {
     addCharacterMask,
     applyCharacterMap,
@@ -65,6 +65,8 @@ export function exposeToWorld() {
     expose('download', download);
     expose('isontimeout', isOnTimeout);
     expose('timeout', timeout);
+    expose('getcurrentimage', getCurrentImage);
+    expose('getcurrentimagemask', getCurrentImageMask);
 
     // default components
     expose('imagerenderer', ImageRenderer);

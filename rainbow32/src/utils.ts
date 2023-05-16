@@ -1,3 +1,7 @@
+import { getAnimationFrame } from './animation';
+import type {gameobject} from './gameObject';
+import { Image, ImageMask } from './imageUtils';
+
 export function download(url: string, filename: string): Promise<void> {
     return fetch(url)
         .then((res) => res.blob())
@@ -50,4 +54,13 @@ export function* range(
 ): Generator<number, void, void> {
     if (start < end) for (let i = start; i <= end; ++i) yield i;
     else for (let i = start; i >= end; --i) yield i;
+}
+
+export function getCurrentImage(obj: gameobject): Image {
+    if (!Array.isArray(obj.image)) return obj.image;
+    return getAnimationFrame(obj.image,obj.lifetime)!;
+}
+export function getCurrentImageMask(obj: gameobject): ImageMask|undefined {
+    if (!Array.isArray(obj.mask)) return obj.mask;
+    return getAnimationFrame(obj.mask,obj.lifetime);
 }
