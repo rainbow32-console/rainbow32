@@ -2768,6 +2768,7 @@ function setupAnimations() {
         h('option', { value: 'text', selected: '' }, [text('text')]),
     ]) as HTMLSelectElement;
     const addFrame = textButton({}, [text('add frame')]);
+    const removeFrame = textButton({}, [text('remove last frame')]);
     const playButton = textButton({}, [text('play')]);
     let current = h(
         'input',
@@ -2776,7 +2777,7 @@ function setupAnimations() {
     ) as HTMLInputElement | HTMLCanvasElement;
     element.append(
         h('h3', {}, [text('animations')]),
-        row(h('h3', {}, [text('type:')]), typeSelector, addFrame, playButton),
+        row(h('h3', {}, [text('type:')]), typeSelector, addFrame, removeFrame, playButton),
         current
     );
 
@@ -3000,11 +3001,7 @@ function setupAnimations() {
         'click',
         () => {
             if (type === 'text') {
-                const value = prompt('Text');
-                const time = Number(prompt('Time (ms)'));
-                if (!value || isNaN(time) || !isFinite(time) || time < 1)
-                    return;
-                frames.push({ value, time });
+                frames.push({ value: '', time: 0 });
                 rerender();
             } else {
                 const opts =
@@ -3018,9 +3015,13 @@ function setupAnimations() {
                 });
                 rerender();
             }
-        },
-        { passive: true }
+        }
     );
+    removeFrame.addEventListener('click', () => {
+        if (frames.length < 1) return;
+        frames.pop();
+        rerender();
+    });
 }
 window.addEventListener('load', () => {
     setupDrawing();
