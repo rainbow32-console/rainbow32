@@ -367,6 +367,7 @@ window.addEventListener(
             if (ev.key === 'F11' && electronAPI) {
                 ev.cancelBubble = true;
                 ev.stopPropagation?.();
+                ev.preventDefault();
                 electronAPI.toggleFullscreen();
             }
             if (!focused || !electronAPI) return;
