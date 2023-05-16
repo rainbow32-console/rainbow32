@@ -11,6 +11,7 @@ import {
 } from './effects';
 import { canvasFullScreen, isFocused, show } from './electron';
 import { exposeToWorld } from './expose';
+import _default from './fonts/default';
 import {
     cls,
     ColorPalette,
@@ -36,6 +37,7 @@ import {
     runLoadAnimation,
     runStartupAnimation,
 } from './startup';
+import { applyCharacterMap, clearCharacterMap } from './text';
 import { download } from './utils';
 
 export type Button = 'up' | 'down' | 'left' | 'right' | 'u' | 'i' | 'o' | 'p';
@@ -697,6 +699,8 @@ export function stopGame(): Promise<void> {
     const _game = currentGame;
     clearAllEffectsAndRenderer();
     setPaletteTranslation();
+    clearCharacterMap();
+    applyCharacterMap(_default);
     _game.remove?.();
     setCurrentPalette(defaultPalette);
     SceneManager.setscenes([]);
