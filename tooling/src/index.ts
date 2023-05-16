@@ -389,6 +389,18 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
         compile() {
             compileAndDownload();
         },
+        helpwiki() {
+            window.open('https://github.com/rainbow32-console/rainbow32/wiki', '_blank')
+        },
+        helpapi1() {
+            window.open('https://github.com/rainbow32-console/rainbow32/wiki/API-(constants-&-functions)', '_blank')
+        },
+        helpapi2() {
+            window.open('https://github.com/rainbow32-console/rainbow32/wiki/API-(Types)', '_blank')
+        },
+        helpissues() {
+            window.open('https://github.com/rainbow32-console/rainbow32/issues', '_blank')
+        },
     };
 
 function closeX() {
