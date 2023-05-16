@@ -20,8 +20,10 @@ export interface fn {
      * @param argArray a list of arguments to be passed to the new function.
      */
     bind(this: fn, thisarg: any, ...argarray: any[]): any;
-    name: string;
+    readonly name: string;
+    readonly length: number;
 }
+export type Function = fn;
 export interface String {
     length: number;
     repeat(amount: number): string;
@@ -674,6 +676,7 @@ type componententry<t> = { component: component<t>; config?: partial<t> };
 export interface gameobject {
     new (opts: gameobjopts): gameobject;
     readonly name: string;
+    readonly lifetime: number;
     transform: transform;
     image: image | animation<image>;
     mask?: imagemask | animation<imagemask>;
@@ -1191,6 +1194,30 @@ export const animationplayer = importExposed('animationplayer') as {
     new <t>(animation: animation<t>): animationplayer<t>;
     prototype: animationplayer<any>;
 } & fn;
-export const animationbuilder = importExposed('animationplayer') as {
+export const animationbuilder = importExposed('animationbuilder') as {
     new <t>(): animationbuilder<t>;
 } & fn;
+export function vec2(x: number, y: number): vec2 {
+    return { x, y };
+}
+export function vec2i(x: number, y: number): vec2 {
+    return { x: flr(x), y: flr(y) };
+}
+export function vec3(x: number, y: number, z: number): vec3 {
+    return { x, y, z };
+}
+export function vec3i(x: number, y: number, z: number): vec3 {
+    return { x: flr(x), y: flr(y), z: flr(z) };
+}
+export function vec4(x: number, y: number, z: number, w: number): vec4 {
+    return { x, y, z, w };
+}
+export function vec4i(x: number, y: number, z: number, w: number): vec4 {
+    return { x: flr(x), y: flr(y), z: flr(z), w: flr(w) };
+}
+export const getcurrentimage = importExposed('getcurrentimage') as (
+    obj: gameobject
+) => image;
+export const getcurrentimagemask = importExposed('getcurrentimagemask') as (
+    obj: gameobject
+) => imagemask | undefined;
