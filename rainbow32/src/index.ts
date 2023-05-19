@@ -17,6 +17,7 @@ import {
     ColorPalette,
     defaultPalette,
     getColor,
+    imgToPng,
     isDirty,
     removeDirtyMark,
     setCurrentPalette,
@@ -232,8 +233,10 @@ export function renderParticles() {
 function render(dt: number) {
     try {
         const start = Date.now();
-        if (unfocused || !frame || !frame.isConnected || !done)
-            return (unfocused = false);
+        if (unfocused || !frame || !frame.isConnected || !done) {
+            unfocused = false;
+            return;
+        }
 
         callEvent('beforeRender', [ctx, dt - previous]);
 
@@ -431,8 +434,8 @@ export type Rainbow32ConsoleElementGenerator = (
 let paused: boolean;
 
 function startRender(dt: number) {
+    if (unfocused) return (unfocused = false);
     previous = dt;
-    unfocused = false;
     render(dt);
 }
 
@@ -877,9 +880,4 @@ window.addEventListener('resize', () => {
         ctx.canvas.style.height = buttonElements.up.isConnected
             ? '50%'
             : '100%';
-    if (
-        window.outerWidth <
-        window.outerHeight >> (buttonElements.up.isConnected ? 1 : 0)
-    )
-        console.log('too short');
 });
