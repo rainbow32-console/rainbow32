@@ -23,7 +23,7 @@ export interface fn {
     readonly name: string;
     readonly length: number;
 }
-export interface Function extends fn {};
+export interface Function extends fn {}
 export interface String {
     length: number;
     repeat(amount: number): string;
@@ -36,7 +36,7 @@ export interface array<t> {
     pop(): void;
     shift(...values: t[]): void;
 }
-export interface Array<t> extends array<t> {};
+export interface Array<t> extends array<t> {}
 export interface promiselike<t> {
     /**
      * attaches callbacks for the resolution and/or rejection of the promise.
@@ -93,7 +93,7 @@ type awaited<t> = t extends null | undefined
         : never
     : t;
 
-export interface Promise<t> extends promise<t> {};
+export interface Promise<t> extends promise<t> {}
 export const promise: {
     /**
      * creates a promise that is resolved with an array of results when all of the provided promises
@@ -938,7 +938,7 @@ export function print(
             { color, background, spaceWidth: spacewidth, centered }
         );
         if (lines.length === 1) cursor(_lines[0].end + 1, _lines[0].y);
-        else cursor(0, cursor_pos.y + 6);
+        else cursor(x !== undefined ? x : 0, cursor_pos.y + 6);
     }
 }
 export function find<t>(
