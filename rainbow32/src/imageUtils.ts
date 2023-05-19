@@ -346,13 +346,26 @@ export function imgToPng(
     type?: 'image/png' | 'image/jpeg' | 'image/webp'
 ) {
     if (image.width < 1 || image.height < 1) throw new Error('Image is 0x0');
+    const _buf = new Uint8Array(image.buf);
+    for (let i = 0; i < _buf.length; ++i)
+        _buf[i] = _buf[i] === 0xff ? 0 : _buf[i];
 
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
     canvas.height = image.height;
-    canvas
-        .getContext('2d', { willReadFrequently: true })
-        ?.putImageData(imgToImageData(image) as ImageData, 0, 0);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('the canvas2d api is not supported');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.putImageData(
+        imgToImageData({
+            width: image.width,
+            height: image.height,
+            buf: _buf,
+        }) as ImageData,
+        0,
+        0
+    );
     return canvas.toDataURL(type || 'image/png');
 }
 
@@ -360,8 +373,8 @@ let offsetX: number = 0;
 let offsetY: number = 0;
 
 export function setOffset(x: number, y: number) {
-    offsetX = x;
-    offsetY = y;
+    offsetX = Math.floor(x);
+    offsetY = Math.floor(y);
 }
 
 export function putImage(x: number, y: number, image: Image) {
@@ -409,7 +422,7 @@ export function putImageRaw(x: number, y: number, image: Image) {
 }
 
 export function isValidColor(color: number): boolean {
-    return (color > -1 && color < 32) || color === 255;
+    return color % 1 === 0 ? (color > -1 && color < 32) || color === 255 : false;
 }
 
 export function square(
@@ -435,8 +448,7 @@ export function circle(radius: number, color: number | string): Image {
 
     const buf = new Uint8Array(radius * radius);
     const halfRadius = Math.floor(radius * 0.5);
-    console.log(halfRadius);
-
+    
     for (let h = 0; h < radius; ++h)
         for (let w = 0; w < radius; ++w) {
             buf[h * radius + w] =
@@ -503,6 +515,10 @@ export function line(
     x2 += offsetX;
     y1 += offsetY;
     y2 += offsetY;
+    x1=Math.floor(x1);
+    y1=Math.floor(y1);
+    x2=Math.floor(x2);
+    y2=Math.floor(y2);
     let sx: number | undefined = undefined,
         sy: number | undefined = undefined,
         dx: number | undefined = undefined,
