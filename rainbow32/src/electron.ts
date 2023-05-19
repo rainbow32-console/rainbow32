@@ -283,7 +283,6 @@ function $open() {
                 let text = '';
                 for (let i = offset; i < buf.length - 4; ++i)
                     text += String.fromCharCode(buf[i]);
-                console.log(text);
                 hide();
                 return loadGameByContents(text).catch(() => {});
             });
