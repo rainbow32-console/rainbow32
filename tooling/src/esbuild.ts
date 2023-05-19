@@ -50,7 +50,7 @@ export async function compile(code: string) {
     const audios: Record<string, Audio> = {};
 
     for (const k of Object.keys(stringImgs)) {
-        if (k.startsWith('__screenshot')) continue;
+        if (k.startsWith('screenshot')) continue;
         try {
             images[k] = parseImage(stringImgs[k]);
         } catch {}

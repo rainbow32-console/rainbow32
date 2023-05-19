@@ -2165,7 +2165,7 @@ function setupEditor() {
                                 ? 'never'
                                 : images
                                       .filter(
-                                          (el) => !el.startsWith('__screenshot')
+                                          (el) => !el.startsWith('screenshot')
                                       )
                                       .map((el) => JSON.stringify(el))
                                       .join('|')),
@@ -3068,13 +3068,15 @@ window.addEventListener(
     'keydown',
     (ev) => {
         if (lastSelected === 'compiled' && ev.key === 'F2') {
-            const name = `__screenshot-${Date.now()}`;
-            const image = stringifyImage({
+            const now = new Date();
+            const name = `screenshot-${now.getDate()}-${now.getMonth()}-${now.getFullYear()}-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+            const image = {
                 width: WIDTH,
                 height: HEIGHT,
                 buf: memory.subarray(1),
-            });
-            addImage(name, image);
+            };
+            addImage(name, stringifyImage(image));
+            download(imgToPng(image), name+'.png');
             ev.preventDefault();
             ev.cancelBubble = true;
             ev.stopPropagation?.();
@@ -3122,7 +3124,6 @@ function awaitLoad(el: HTMLImageElement): Promise<void> {
         el.addEventListener('error', rej);
     });
 }
-
 export function putImageData(
     ctx: CanvasRenderingContext2D,
     data: ImageData | null,
@@ -3134,7 +3135,6 @@ export function putImageData(
     blendImageData(bgData, data);
     ctx.putImageData(bgData, x, y);
 }
-
 export function blendImageData(data1: ImageData, data2: ImageData) {
     if (data1.height !== data2.height || data1.width !== data2.width)
         throw new Error('Width or height do not match between data1 and data2');
@@ -3164,7 +3164,6 @@ export function blendImageData(data1: ImageData, data2: ImageData) {
             data1.data[offset + 3] = Math.max(a2, data1.data[offset + 3]);
         }
 }
-
 function customWriteText(
     text: string,
     ctx: CanvasRenderingContext2D,
@@ -3208,7 +3207,6 @@ function customWriteText(
         x += mask.width + 1;
     }
 }
-
 async function codeToCartridge(image: string, name: string, author: string) {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -3263,5 +3261,4 @@ async function codeToCartridge(image: string, name: string, author: string) {
     if (!data) throw new Error('Failed to compile');
     return 'data:image/png;base64,' + btoa(data);
 }
-
 (window as any).compile = compileTypescript;
