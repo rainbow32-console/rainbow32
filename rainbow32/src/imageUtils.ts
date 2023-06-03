@@ -369,8 +369,8 @@ export function imgToPng(
     return canvas.toDataURL(type || 'image/png');
 }
 
-let offsetX: number = 0;
-let offsetY: number = 0;
+export let offsetX: number = 0;
+export let offsetY: number = 0;
 
 export function setOffset(x: number, y: number) {
     offsetX = Math.floor(x);
@@ -422,7 +422,9 @@ export function putImageRaw(x: number, y: number, image: Image) {
 }
 
 export function isValidColor(color: number): boolean {
-    return color % 1 === 0 ? (color > -1 && color < 32) || color === 255 : false;
+    return color % 1 === 0
+        ? (color > -1 && color < 32) || color === 255
+        : false;
 }
 
 export function square(
@@ -441,26 +443,50 @@ export function square(
     };
 }
 
-export function circle(radius: number, color: number | string): Image {
-    if (radius < 1) throw new Error('Radius is less than 1');
+export function circle(
+    radius: number,
+    color: number | string,
+    filled?: boolean
+): Image {
+    if (radius < 1) return { width: 0, height: 0, buf: new Uint8Array(0) };
     if (typeof color === 'string') color = parseInt(color, 32);
     if (!isValidColor(color)) throw new Error('That color is invalid!');
 
-    const buf = new Uint8Array(radius * radius);
-    const halfRadius = Math.floor(radius * 0.5);
-    
-    for (let h = 0; h < radius; ++h)
-        for (let w = 0; w < radius; ++w) {
-            buf[h * radius + w] =
-                distance(w, h, halfRadius, halfRadius) <= halfRadius
-                    ? color
-                    : 0xff;
+    const w = radius * 2 + 1,
+        h = w;
+    const buf = new Uint8Array(w * h);
+    buf.fill(0xff);
+
+    // Credit:
+    // https://github.com/tsoding/olive.c/blob/89632460373112f708a7c839b7fd4c481dd88b34/olive.c
+
+    let x1 = 0,
+        y1 = 0,
+        x2 = radius * 2,
+        y2 = radius * 2;
+
+    const _rad = Math.pow(radius + 1, 2);
+
+    for (let y = y1; y <= y2; ++y) {
+        if (0 <= y && y < h) {
+            for (let x = x1; x <= x2; ++x) {
+                if (0 <= x && x < w) {
+                    let dx = x - radius;
+                    let dy = y - radius;
+                    // what is this value?
+                    const idk = dx * dx + dy * dy;
+                    if (idk < _rad && (filled || idk >= radius * radius)) {
+                        buf[y * w + x] = color;
+                    }
+                }
+            }
         }
+    }
 
     return {
         buf,
-        height: radius,
-        width: radius,
+        height: h,
+        width: w,
     };
 }
 
@@ -515,10 +541,10 @@ export function line(
     x2 += offsetX;
     y1 += offsetY;
     y2 += offsetY;
-    x1=Math.floor(x1);
-    y1=Math.floor(y1);
-    x2=Math.floor(x2);
-    y2=Math.floor(y2);
+    x1 = Math.floor(x1);
+    y1 = Math.floor(y1);
+    x2 = Math.floor(x2);
+    y2 = Math.floor(y2);
     let sx: number | undefined = undefined,
         sy: number | undefined = undefined,
         dx: number | undefined = undefined,

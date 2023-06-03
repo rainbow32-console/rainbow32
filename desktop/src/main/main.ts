@@ -9,70 +9,67 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path, { join } from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
-import MenuBuilder from './menu';
-import { homedir, userInfo } from 'os';
-import { devices } from './getDevices';
-import { mount, unmount } from './mount';
-import { readdir, readFile } from 'fs/promises';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  nativeTheme,
+  Menu,
+} from 'electron';
+import MenuBuilder, { getMiscMenu } from './menu';
+import { homedir } from 'os';
+import {
+  access,
+  constants,
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+} from 'fs/promises';
 import { existsSync } from 'fs';
-import { getMountpoint } from './getmount';
-
-let mounted: string | null = null;
+//@ts-ignore
+import prompt from 'custom-electron-prompt';
 
 export let mainWindow: BrowserWindow | null = null;
 
-function resolvePath(device: string, path: string) {
-  const newPath =
-    device === '/'
-      ? path
-      : device === 'home'
-      ? join(homedir(), path)
-      : join(
-          getMountpoint(devices.find((el) => el.name === device)?.id || ''),
-          path
-        );
-  return newPath.startsWith('/') ? newPath : '/' + newPath;
-}
+nativeTheme.themeSource = 'dark';
 
-ipcMain.handle('list-dir', async (ev, device: string, path: string) => {
-  if (device === 'cartridges') return [];
-  try {
-    const res = await readdir(resolvePath(device, path), {
-      withFileTypes: true,
-    });
-    return res
-      .map((el) =>
-        el.isFile()
-          ? { file: true, name: el.name }
-          : el.isDirectory()
-          ? { file: false, name: el.name }
-          : null
-      )
-      .filter((el_1) => !!el_1 && el_1.name[0] !== '.');
-  } catch {
-    return undefined;
+ipcMain.handle('get-cartexplore-code', () =>
+  readFile(getAssetPath('cartexplorer.js')).then((f) => f.toString())
+);
+ipcMain.handle(
+  'save-screenshot',
+  async (ev, data: Uint8Array, name: string) => {
+    try {
+      await access(join(homedir(), 'rainbow32-screenshots'), constants.W_OK);
+    } catch {
+      await mkdir(join(homedir(), 'rainbow32-screenshots'));
+    }
+    const file = join(
+      homedir(),
+      'rainbow32-screenshots',
+      name.replaceAll('/', '').replaceAll('\\', '')
+    );
+    writeFile(file, data);
   }
+);
+ipcMain.handle('prompt', async (_ev, message: string, value?: string) => {
+  return prompt(
+    {
+      title: 'Alert',
+      label: message,
+      value: value || '',
+    },
+    mainWindow
+  ).then(
+    (r: string | null) => r,
+    () => null
+  );
 });
 
-ipcMain.handle('mount', (ev, device: string) => {
-  if (mounted) {
-    unmount(mounted);
-    mounted = null;
-  }
-  const id = devices.find((el) => el.name === device)?.id;
-  if (id) mounted = id;
-  if (existsSync('/media/' + userInfo().username + '/' + device)) return;
-  if (id) mount(id);
-});
-
-ipcMain.handle('unmount', (ev, device: string) => {
-  const id = devices.find((el) => el.name === device)?.id;
-  if (id) unmount(id);
-  if (mounted === id) mounted === null;
-});
-const cartridges: string[] = [];
-(async function () {
+async function getCarts() {
+  const cartridges: string[] = [];
   if (!existsSync(join(homedir(), '.cartridges'))) return [];
   const dirs: string[] = [join(homedir(), '.cartridges')];
   while (dirs.length > 0) {
@@ -89,15 +86,9 @@ const cartridges: string[] = [];
       }
     } catch {}
   }
-})();
-ipcMain.handle('get-cartridges', () => cartridges);
-ipcMain.handle('get-devices', () => devices.map((el) => el.name));
-
-ipcMain.handle('get-file-contents', (ev, device: string, path: string) =>
-  readFile(resolvePath(device, path))
-    .then((p) => p.toString())
-    .catch(() => {})
-);
+  return cartridges;
+}
+ipcMain.handle('get-cartridges', getCarts);
 ipcMain.on('press-key', (ev, key: string) => pressKey(key));
 function pressKey(key: string) {
   if (!mainWindow) return;
@@ -126,11 +117,14 @@ export const getAssetPath = (...paths: string[]): string => {
 
 ipcMain.on('load-program', (ev, program: 'sdk' | 'rainbow32') => {
   if (!mainWindow) return;
-  if (program === 'rainbow32') mainWindow.loadFile(getAssetPath('rainbow.html'));
+  if (program === 'rainbow32')
+    mainWindow.loadFile(getAssetPath('rainbow32.html'));
   else if (program === 'sdk') mainWindow.loadFile(getAssetPath('sdk.html'));
 });
 
 const args = process.argv.slice(1);
+
+const mismen = getMiscMenu();
 
 const createWindow = async () => {
   const RESOURCES_PATH = app.isPackaged
@@ -140,7 +134,6 @@ const createWindow = async () => {
   const getAssetPath = (...paths: string[]): string => {
     return path.join(RESOURCES_PATH, ...paths);
   };
-  const fullscreen = !args.includes('windowed') && !args.includes('sdk');
 
   mainWindow = new BrowserWindow({
     show: false,
@@ -152,11 +145,9 @@ const createWindow = async () => {
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
     },
-    fullscreen,
+    autoHideMenuBar: true,
+    darkTheme: true,
   });
-
-  mainWindow.setFullScreen(fullscreen);
-  mainWindow.setFullScreen(fullscreen);
 
   mainWindow.loadFile(
     args.includes('sdk')
@@ -168,7 +159,6 @@ const createWindow = async () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
-    mainWindow.setFullScreen(mainWindow.isFullScreen());
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
@@ -185,7 +175,22 @@ const createWindow = async () => {
 
   // Open urls in the user's browser
   mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
+    try {
+      const url = new URL(edata.url);
+      if (
+        url.origin.endsWith('github.com') &&
+        url.pathname.startsWith('/rainbow32-console/rainbow32/wiki')
+      ) {
+        const wind = new BrowserWindow({
+          icon: getAssetPath('icon.png'),
+          darkTheme: true,
+        });
+        wind.setMenu(mismen);
+        wind.loadURL(edata.url);
+      } else shell.openExternal(edata.url);
+    } catch {
+      shell.openExternal(edata.url);
+    }
     return { action: 'deny' };
   });
 };
@@ -215,7 +220,3 @@ app
     // globalShortcut.register('F12', () => spawnSync('shutdown', ['0']));
   })
   .catch(console.log);
-
-process.on('exit', () => {
-  if (mounted) unmount(mounted);
-});

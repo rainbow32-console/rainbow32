@@ -15,24 +15,6 @@ function invoke(channel: Channels, ...data: any[]): Promise<any> {
 
 const electronHandler = {
   ipcRenderer: {
-    getDevices(): Promise<string[]> {
-      return invoke('get-devices');
-    },
-    mountDevice(device: string): Promise<void> {
-      return invoke('mount', device);
-    },
-    unmountDevice(device: string): Promise<void> {
-      return invoke('unmount', device);
-    },
-    listDirectory(
-      device: string,
-      path: string
-    ): Promise<undefined | { name: string; file: boolean }[]> {
-      return invoke('list-dir', device, path);
-    },
-    getFileContents(device: string, path: string): Promise<string | undefined> {
-      return invoke('get-file-contents', device, path);
-    },
     sendKey(key: string) {
       return ipcRenderer.send('press-key', key);
     },
@@ -40,10 +22,19 @@ const electronHandler = {
       return ipcRenderer.invoke('get-cartridges');
     },
     toggleFullscreen() {
-      ipcRenderer.send('toggle-fullscreen')
+      ipcRenderer.send('toggle-fullscreen');
     },
-    loadProgram(program: 'sdk'|'rainbow32') {
+    loadProgram(program: 'sdk' | 'rainbow32') {
       ipcRenderer.send('load-program', program);
+    },
+    saveScreenshot(data: Uint8Array, name: string) {
+      ipcRenderer.invoke('save-screenshot', data, name);
+    },
+    getExplorerCode(): Promise<string> {
+      return ipcRenderer.invoke('get-cartexplore-code');
+    },
+    prompt(message: string, value?: string): Promise<string|null> {
+      return ipcRenderer.invoke('prompt', message, value);
     }
   },
 };

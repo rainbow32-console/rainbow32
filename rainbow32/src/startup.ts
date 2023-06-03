@@ -41,16 +41,6 @@ export function runStartupAnimation(): Promise<void> {
     return new Promise((r) => setTimeout(r, 320));
 }
 
-export function runLoadAnimation(): Promise<void> {
-    const y = putStartupImage();
-    writeText('loading cartridge...', 3, y, WIDTH - 3, {
-        color: 3,
-        background: 0,
-    });
-
-    return new Promise((r) => setTimeout(r, 200));
-}
-
 export async function runErrorAnimation(err?: any): Promise<void> {
     const y = putStartupImage();
     writeText(
@@ -62,19 +52,6 @@ export async function runErrorAnimation(err?: any): Promise<void> {
             color: 3,
             background: 0,
         }
-    );
-
-    await playSound(
-        { octave: 4, sharp: false, sound: 'c' },
-        'square-wave',
-        0.2,
-        0.1
-    );
-    await playSound(
-        { octave: 3, sharp: false, sound: 'c' },
-        'square-wave',
-        0.2,
-        0.2
     );
 }
 

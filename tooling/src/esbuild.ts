@@ -136,6 +136,8 @@ export async function compileTypescript(code: string): Promise<string> {
     const res = await esbuild.transform(globalcode + ';' + code, {
         minify: true,
         loader: 'ts',
+        minifySyntax: true,
+        treeShaking: true,
     });
     return res.code;
 }

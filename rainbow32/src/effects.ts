@@ -1,3 +1,4 @@
+import { Vec2 } from './gameObject';
 import { getColor } from './imageUtils';
 
 const noop = () => {};
@@ -57,6 +58,7 @@ interface Renderer<T> {
     update(
         realcolor: color,
         color: number,
+        pos: Vec2,
         val: T,
         renderer: Renderer<T> & { value: T }
     ): color;
@@ -96,12 +98,13 @@ export function removeRenderer(renderer: Renderer<any> | string) {
     delete renderers[name];
 }
 
-export function getPixel(col: number): color {
+export function getPixel(col: number, pos: Vec2): color {
     let color = getColor(col);
     for (let key in renderers)
         color = renderers[key].update(
             color,
             col,
+            pos,
             renderers[key].value,
             renderers[key]
         );

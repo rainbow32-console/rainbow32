@@ -1,10 +1,20 @@
 import { frequencyMap } from './frequencyMap';
+import { displayMessage } from './statusbar';
 import { sleep } from './utils';
 
 export let volume = 100;
+export let muted = false;
+
+export function toggleMute(state?: boolean) {
+    if (state === undefined) state = !muted;
+    muted = state;
+
+    if (state) displayMessage('muted (ctrl+m)');
+    else displayMessage('unmuted (ctrl+m)');
+}
 
 export function getVolume() {
-    return volume;
+    return muted ? 0 : volume;
 }
 export type gfxInstrument = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type Instrument =
@@ -310,6 +320,7 @@ function playTune(
         return new Promise((_, rej) =>
             rej(new Error('Audiocontext is closed!'))
         );
+    if (muted) return sleep(time * 1000);
     const node = new OscillatorNode(ctx, {
         type,
         frequency: freq,
@@ -331,6 +342,7 @@ function playNoise(vol: number, freq: number, time: number): Promise<void> {
         return new Promise((_, rej) =>
             rej(new Error('Audiocontext is closed!'))
         );
+    if (muted) return sleep(time * 1000);
     const bufferSize = ctx.sampleRate * time; // set the time of the note
 
     // Create an empty buffer

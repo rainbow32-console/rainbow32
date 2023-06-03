@@ -7,7 +7,7 @@ import {
     unpause,
     WIDTH,
 } from '.';
-import { setVolume, volume } from './audioUtils';
+import { muted, setVolume, toggleMute, volume } from './audioUtils';
 import {
     cls,
     getColorTranslations,
@@ -50,11 +50,9 @@ export function renderPauseMenu() {
         else str += ' ';
         str += entries[i]?.name || '';
     }
-    str += `\n${
-        selected === entries.length + 1 ? '▶' : ' '
-    }volume: ${volume}%\n${
-        selected === entries.length + 2 ? '▶' : ' '
-    }reset cartridge`;
+    str += `\n${selected === entries.length + 1 ? '▶' : ' '}volume: ${
+        muted ? '---' : volume
+    }%\n${selected === entries.length + 2 ? '▶' : ' '}reset cartridge`;
 
     let maxWidth = calculateWidth(str) + 3;
     let height = str.split('\n').length * 6 + 3;
@@ -82,6 +80,7 @@ export function renderPauseMenu() {
             else if (selected === entries.length + 1) {
                 if (buttons.left.down) setVolume(volume - 1);
                 if (buttons.right.down) setVolume(volume + 1);
+                if (buttons.u.press) toggleMute();
             } else if (selected === entries.length + 2) resetCart();
             else entries[selected - 1]?.callback();
         }
@@ -100,7 +99,7 @@ export function removeEntry(index: number) {
 let lastColorPalette: Record<number, number> = {};
 export function resetSelected() {
     selected = 0;
-    lastColorPalette = {...getColorTranslations()};
+    lastColorPalette = { ...getColorTranslations() };
     setPaletteTranslation();
     old_image_buf = new Uint8Array(memory.length);
     for (let i = 1; i < memory.length; ++i) {

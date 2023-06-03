@@ -1,3 +1,41 @@
+export type PromiseConstructorLike = new <T>(
+    executor: (
+        resolve: (value: T | PromiseLike<T>) => void,
+        reject: (reason?: any) => void
+    ) => void
+) => PromiseLike<T>;
+export interface PromiseLike<t> {
+    /**
+     * attaches callbacks for the resolution and/or rejection of the promise.
+     * @param onfulfilled the callback to execute when the promise is resolved.
+     * @param onrejected the callback to execute when the promise is rejected.
+     * @returns a promise for the completion of which ever callback is executed.
+     */
+    then<tres1 = t, tres2 = never>(
+        onfulfilled?:
+            | ((value: t) => tres1 | promiselike<tres1>)
+            | undefined
+            | null,
+        onrejected?:
+            | ((reason: any) => tres2 | promiselike<tres2>)
+            | undefined
+            | null
+    ): promiselike<tres1 | tres2>;
+}
+export const array: {
+    new <t>(...values: t[]): t[];
+    new <t = any>(length: number): t[];
+    <t>(...values: t[]): t[];
+    <t = any>(length: number): t[];
+    isarray(value: any): value is any[];
+    from<t>(
+        value: arraylike<t>,
+        mapfn?: (val: t, index: number) => t,
+        thisarg?: any
+    ): t[];
+    of<t>(...values: t[]): t[];
+} = globalThis.Array as any;
+array.isarray = globalThis.Array.isArray;
 export interface fn {
     /**
      * calls the function, substituting the specified object for the this value of the function, and the specified array for the arguments of the function.
@@ -35,6 +73,16 @@ export interface array<t> {
     unshift(...values: t[]): number;
     pop(): void;
     shift(...values: t[]): void;
+    fill(value: t): t[];
+    /**
+     * @deprecated use mmap() or arraypipes
+     */
+    map<k>(predicate: (val: t, index: number, array: t[]) => k): k[];
+    /**
+     * @deprecated use arraypipes (for 1+ maps or filters) and mmap()/filter() (for just 1 map or filter)
+     */
+    filter(predicate: (val: t, index: number, array: t[]) => boolean): t[];
+    includes(value: t): boolean;
 }
 export interface Array<t> extends array<t> {}
 export interface promiselike<t> {
@@ -257,7 +305,7 @@ export function tostring(value: any) {
 }
 export const tostr = tostring;
 function importExposed(name: string): any {
-    return (globalThis as any)[name];
+    return (globalThis as any).__rainbow32_api[name];
 }
 
 export const sqrt = Math.sqrt as (x: number) => number;
@@ -367,7 +415,8 @@ export const imageutils = {
     ) => image,
     circle: importExposed('circle') as (
         radius: number,
-        color: number | string
+        color: number | string,
+        filled?: boolean
     ) => image,
     square: importExposed('square') as (
         width: number,
@@ -681,12 +730,12 @@ export interface gameobjopts {
 }
 
 type componententry<t> = { component: component<t>; config?: partial<t> };
-export interface gameobject {
+export interface gameobject<withanis extends boolean = true | false> {
     readonly name: string;
     readonly lifetime: number;
     transform: transform;
-    image: image | animation<image>;
-    mask?: imagemask | animation<imagemask>;
+    image: withanis extends true ? image | animation<image> : image;
+    mask?: withanis extends true ? imagemask | animation<imagemask> : imagemask;
     active: boolean;
     addcomponents<t>(components: componententry<t>[]): void;
     removecomponent(component: string): void;
@@ -706,8 +755,18 @@ export interface line {
     start: number;
     end: number;
 }
-
-export function square(
+export function rectfill(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    color: number | string,
+    mask?: imagemask
+) {
+    rect(x, y, width, height, color, mask, true);
+}
+export const square = imageutils.square;
+export function rect(
     x: number,
     y: number,
     width: number,
@@ -720,13 +779,18 @@ export function square(
     height = flr(height);
     x = flr(x);
     y = flr(y);
+    let scale = 1;
+    if (mask && width % mask.width === 0 && height % mask.height === 0) {
+        scale = width / mask.width;
+        width = mask.width;
+        height = mask.height;
+    } else if (mask && (mask.width !== width || mask.height !== height))
+        throw new Error(
+            'the width and height have to be the same or a multiple of the masks width and height'
+        );
     if (height < 1 || width < 1) return;
     if (typeof color === 'string') color = parseInt(color, 32);
     if (!filled) {
-        if (mask && (mask.width !== width || mask.height !== height))
-            throw new Error(
-                'the mask width and height have to be equal to the of the square'
-            );
         const image: image = {
             height,
             width,
@@ -744,18 +808,16 @@ export function square(
                 buf[(height - 2) * width + i] = color;
 
         if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
-        imageutils.putimage(x, y, image);
+        if (scale !== 1) imageutils.putimage(x, y, scaleimg(scale, image));
+        else imageutils.putimage(x, y, image);
     } else {
-        if (mask && (mask.width !== width || mask.height !== height))
-            throw new Error(
-                'the mask width and height have to be equal to the of the square'
-            );
         const image = imageutils.square(width, height, color);
         if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
-        imageutils.putimage(x, y, image);
+        if (scale !== 1) imageutils.putimage(x, y, scaleimg(scale, image));
+        else imageutils.putimage(x, y, image);
     }
 }
-export function circle(
+export function circ(
     x: number,
     y: number,
     radius: number,
@@ -766,7 +828,22 @@ export function circle(
         throw new Error(
             'the mask width and height have to be equal to the radius'
         );
-    const image = imageutils.circle(radius, color);
+    const image = imageutils.circle(radius, color, false);
+    if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
+    imageutils.putimage(x, y, image);
+}
+export function circfill(
+    x: number,
+    y: number,
+    radius: number,
+    color: number | string,
+    mask?: imagemask
+) {
+    if (mask && (mask.width !== radius || mask.height !== radius))
+        throw new Error(
+            'the mask width and height have to be equal to the radius'
+        );
+    const image = imageutils.circle(radius, color, true);
     if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
     imageutils.putimage(x, y, image);
 }
@@ -810,7 +887,9 @@ export function spr(
         scaleimg(scale, image)
     );
 }
-// TODO: implement
+export function sprraw(x: number, y: number, image: image, scale?: number) {
+    spr(x, y, image, scale, true);
+}
 export function del<t>(arr: t[], value: t) {
     if (arr === null || !arr.length) return;
     let firstIndex = arr.indexOf(value);
@@ -1099,6 +1178,7 @@ interface renderer<t> {
     update(
         realcolor: color,
         color: number,
+        pos: vec2,
         val: t,
         renderer: renderer<t> & { value: t }
     ): color;
@@ -1227,3 +1307,10 @@ export const getcurrentimage = importExposed('getcurrentimage') as (
 export const getcurrentimagemask = importExposed('getcurrentimagemask') as (
     obj: gameobject
 ) => imagemask | undefined;
+
+export type returntype<t extends (...args: any) => any> = t extends (
+    ...args: any
+) => infer r
+    ? r
+    : any;
+export const run = importExposed('run') as (code: string) => promise<void>;

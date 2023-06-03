@@ -133,8 +133,7 @@ export function calculateWidth(text: string, spaceWidth?: number): number {
                 else if (type === 'y') {
                     if (lineLength > maxLineWidth) maxLineWidth = lineLength;
                     lineLength = x;
-                }
-                else if (type === 's' && number > 0) i += number;
+                } else if (type === 's' && number > 0) i += number;
             }
             ++i;
             continue;
@@ -219,8 +218,14 @@ export function writeText(
                 else if (type === 'b' && isValidColor(number))
                     background = number === 0xff ? undefined : number;
                 else if (type === 'v') y += number;
-                else if (type === 'h') x += number;
-                else if (type === 'y') y = number;
+                else if (type === 'h') {
+                    if (background !== undefined)
+                        putImage(x, y, square(number, 5, background));
+                    if (background !== undefined && lineLength > 0)
+                        putImage(x-1, y, square(1, 5, background));
+                    lineLength += x;
+                    x += number;
+                } else if (type === 'y') y = number;
                 else if (type === 'x') x = number;
                 else if (type === 's' && number > 0) i += number;
             }

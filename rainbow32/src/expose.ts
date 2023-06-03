@@ -14,6 +14,7 @@ import * as audioUtils from './audioUtils';
 import {
     buttons,
     HEIGHT,
+    loadGameByContents,
     memory,
     renderParticles,
     shouldBreak,
@@ -57,7 +58,12 @@ import {
 } from './animation';
 
 function expose(name: string, variable: any) {
-    Object.defineProperty(globalThis, name, {
+    if (
+        !globalThis.__rainbow32_api ||
+        typeof globalThis.__rainbow32_api !== 'object'
+    )
+        globalThis.__rainbow32_api = {};
+    Object.defineProperty(globalThis.__rainbow32_api, name, {
         get() {
             if (shouldBreak())
                 throw new Error('Game is not currently running!');
@@ -67,9 +73,9 @@ function expose(name: string, variable: any) {
 }
 
 export function exposeToWorld() {
-    if (globalThis.__did_expose) return;
+    if (globalThis.__rainbow32_api?.__did_expose) return;
 
-    globalThis.__did_expose = true;
+    globalThis.__rainbow32_api = { __did_expose: true };
 
     // text
     const fonts = {
@@ -188,4 +194,6 @@ export function exposeToWorld() {
     expose('animationbuilder', animationBuilder);
     expose('animationplayer', AnimationPlayer);
     expose('getanimationframe', getAnimationFrame);
+
+    expose('run', loadGameByContents);
 }
