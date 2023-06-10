@@ -48,8 +48,8 @@ type componententry<t> = { component: component<t>; config?: Partial<t> };
 
 export class gameobject {
     transform: Transform;
-    image: Image|Animation<Image>;
-    mask?: ImageMask|Animation<ImageMask>;
+    image: Image | Animation<Image>;
+    mask?: ImageMask | Animation<ImageMask>;
     private components: Record<string, component<any>> = {};
     private componentInitData: Record<string, any> = {};
     private componentData: Record<string, any> = {};
@@ -61,11 +61,12 @@ export class gameobject {
         { cb: (...args: any[]) => void; once: boolean }[]
     > = {};
     private initOpts: GameObjectOptions;
-    private _timeFromInit=-1;
+    private _timeFromInit = -1;
     get lifetime() {
         if (this._timeFromInit < 0) return -1;
-        return Date.now()-this._timeFromInit;
+        return Date.now() - this._timeFromInit;
     }
+    private isremoved = true;
 
     constructor(opts: GameObjectOptions) {
         this.initOpts = opts;
@@ -74,6 +75,7 @@ export class gameobject {
     }
 
     private reset() {
+        this.isremoved = true;
         const {
             image,
             components,
@@ -158,6 +160,7 @@ export class gameobject {
     }
 
     remove() {
+        this.isremoved = true;
         this._timeFromInit = -1;
         this.emitevent('remove', []);
         const keys = Object.keys(this.components);
@@ -166,10 +169,11 @@ export class gameobject {
                 this.componentData[keys[i]],
                 this
             );
-        this.reset();
+        requestAnimationFrame(this.reset.bind(this));
     }
 
     init() {
+        this.isremoved = false;
         this._timeFromInit = Date.now();
         this.emitevent('init', []);
         const keys = Object.keys(this.components);
@@ -190,11 +194,13 @@ export class gameobject {
 
         let keys = Object.keys(this.components);
         for (let i = 0; i < keys.length; ++i)
-            this.components[keys[i]]?.update?.(
-                this.componentData[keys[i]],
-                dt,
-                this
-            );
+            if (this.componentData[keys[i]] && !this.isremoved)
+                this.components[keys[i]]?.update?.(
+                    this.componentData[keys[i]],
+                    dt,
+                    this
+                );
+        if (this.isremoved) return;
         this.emitevent('renderLate', [dt]);
     }
 

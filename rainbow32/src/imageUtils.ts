@@ -1,4 +1,4 @@
-import { HEIGHT, memory, WIDTH } from '.';
+import { HEIGHT, memory, WIDTH } from './index';
 import { distance } from './math';
 
 export type ColorPalette = [
@@ -130,12 +130,13 @@ export function setCurrentPalette(palette: ColorPalette) {
 }
 
 export function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
-    if (color === 0xff) return {
-        r: 0,
-        g: 0,
-        b: 0,
-        a: 0,
-    }
+    if (color === 0xff)
+        return {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
     return parsedPalette[color];
 }
 
@@ -345,22 +346,35 @@ export function imgToPng(
     type?: 'image/png' | 'image/jpeg' | 'image/webp'
 ) {
     if (image.width < 1 || image.height < 1) throw new Error('Image is 0x0');
+    const _buf = new Uint8Array(image.buf);
+    for (let i = 0; i < _buf.length; ++i)
+        _buf[i] = _buf[i] === 0xff ? 0 : _buf[i];
 
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
     canvas.height = image.height;
-    canvas
-        .getContext('2d', { willReadFrequently: true })
-        ?.putImageData(imgToImageData(image) as ImageData, 0, 0);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('the canvas2d api is not supported');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.putImageData(
+        imgToImageData({
+            width: image.width,
+            height: image.height,
+            buf: _buf,
+        }) as ImageData,
+        0,
+        0
+    );
     return canvas.toDataURL(type || 'image/png');
 }
 
-let offsetX: number = 0;
-let offsetY: number = 0;
+export let offsetX: number = 0;
+export let offsetY: number = 0;
 
 export function setOffset(x: number, y: number) {
-    offsetX = x;
-    offsetY = y;
+    offsetX = Math.floor(x);
+    offsetY = Math.floor(y);
 }
 
 export function putImage(x: number, y: number, image: Image) {
@@ -372,8 +386,8 @@ export function putImage(x: number, y: number, image: Image) {
         for (let w = 0; w < image.width; ++w) {
             if (x + w >= WIDTH || x + w < 0) continue;
             const off = (h + y) * WIDTH + x + w;
-            if (image.buf[h * image.width + w] === 0xff) continue;
-            memory[off + 1] = image.buf[h * image.width + w];
+            const col = getTranslatedColor(image.buf[h * image.width + w]);
+            if (col !== 0xff) memory[off + 1] = col;
         }
     }
 }
@@ -388,7 +402,7 @@ export function setPixel(x: number, y: number, color: number | string) {
     if (x < 0) return;
     if (y < 0) return;
     isDirty = true;
-    memory[y * WIDTH + x + 1] = color;
+    memory[y * WIDTH + x + 1] = getTranslatedColor(color);
 }
 
 export function putImageRaw(x: number, y: number, image: Image) {
@@ -400,13 +414,17 @@ export function putImageRaw(x: number, y: number, image: Image) {
         for (let w = 0; w < image.width; ++w) {
             if (x + w >= WIDTH || x + w < 0) continue;
             const off = (h + y) * WIDTH + x + w;
-            memory[off + 1] = image.buf[h * image.width + w];
+            memory[off + 1] = getTranslatedColor(
+                image.buf[h * image.width + w]
+            );
         }
     }
 }
 
 export function isValidColor(color: number): boolean {
-    return (color > -1 && color < 32) || color === 255;
+    return color % 1 === 0
+        ? (color > -1 && color < 32) || color === 255
+        : false;
 }
 
 export function square(
@@ -425,27 +443,50 @@ export function square(
     };
 }
 
-export function circle(radius: number, color: number | string): Image {
-    if (radius < 1) throw new Error('Radius is less than 1');
+export function circle(
+    radius: number,
+    color: number | string,
+    filled?: boolean
+): Image {
+    if (radius < 1) return { width: 0, height: 0, buf: new Uint8Array(0) };
     if (typeof color === 'string') color = parseInt(color, 32);
     if (!isValidColor(color)) throw new Error('That color is invalid!');
 
-    const buf = new Uint8Array(radius * radius);
-    const halfRadius = Math.floor(radius * 0.5);
-    console.log(halfRadius);
+    const w = radius * 2 + 1,
+        h = w;
+    const buf = new Uint8Array(w * h);
+    buf.fill(0xff);
 
-    for (let h = 0; h < radius; ++h)
-        for (let w = 0; w < radius; ++w) {
-            buf[h * radius + w] =
-                distance(w, h, halfRadius, halfRadius) <= halfRadius
-                    ? color
-                    : 0xff;
+    // Credit:
+    // https://github.com/tsoding/olive.c/blob/89632460373112f708a7c839b7fd4c481dd88b34/olive.c
+
+    let x1 = 0,
+        y1 = 0,
+        x2 = radius * 2,
+        y2 = radius * 2;
+
+    const _rad = Math.pow(radius + 1, 2);
+
+    for (let y = y1; y <= y2; ++y) {
+        if (0 <= y && y < h) {
+            for (let x = x1; x <= x2; ++x) {
+                if (0 <= x && x < w) {
+                    let dx = x - radius;
+                    let dy = y - radius;
+                    // what is this value?
+                    const idk = dx * dx + dy * dy;
+                    if (idk < _rad && (filled || idk >= radius * radius)) {
+                        buf[y * w + x] = color;
+                    }
+                }
+            }
         }
+    }
 
     return {
         buf,
-        height: radius,
-        width: radius,
+        height: h,
+        width: w,
     };
 }
 
@@ -500,6 +541,10 @@ export function line(
     x2 += offsetX;
     y1 += offsetY;
     y2 += offsetY;
+    x1 = Math.floor(x1);
+    y1 = Math.floor(y1);
+    x2 = Math.floor(x2);
+    y2 = Math.floor(y2);
     let sx: number | undefined = undefined,
         sy: number | undefined = undefined,
         dx: number | undefined = undefined,
@@ -532,6 +577,28 @@ export function line(
             y1 = y1 + sy;
         }
         if (x1 < 0 || x1 >= WIDTH || y1 < 0 || y1 >= HEIGHT) continue;
-        memory[y1 * WIDTH + x1 + 1] = col;
+        memory[y1 * WIDTH + x1 + 1] = getTranslatedColor(col);
     }
+}
+
+const colorTranslations: Record<number, number> = {};
+
+export function setPaletteTranslation(color1?: number, color2?: number) {
+    if (!isValidColor(color1 || 0))
+        throw new Error('color1 is not a valid color');
+    if (!isValidColor(color2 || 0))
+        throw new Error('color2 is not a valid color');
+
+    if (color1 === undefined)
+        for (const k in colorTranslations) delete colorTranslations[k];
+    else colorTranslations[color1] = color2 === undefined ? color1 : color2;
+}
+
+function getTranslatedColor(color: number): number {
+    if (color in colorTranslations) return colorTranslations[color];
+    return color;
+}
+
+export function getColorTranslations(): Record<number, number> {
+    return colorTranslations;
 }

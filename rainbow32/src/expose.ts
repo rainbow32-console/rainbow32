@@ -1,4 +1,8 @@
-import { screenshake, blackwhiteColorRenderer, oldColors } from './effectRendererDefaults'
+import {
+    screenshake,
+    blackwhiteColorRenderer,
+    oldColors,
+} from './effectRendererDefaults';
 import { ImageRenderer } from './components/imageRenderer';
 import { BoxCollider } from './components/BoxCollisions';
 import _default from './fonts/default';
@@ -7,12 +11,27 @@ import legacy from './fonts/legacy';
 import { createComponent, gameobject } from './gameObject';
 import * as imageUtils from './imageUtils';
 import * as audioUtils from './audioUtils';
-import { buttons, HEIGHT, memory, renderParticles, shouldBreak, stopGame, WIDTH } from './index';
+import {
+    buttons,
+    HEIGHT,
+    loadGameByContents,
+    memory,
+    renderParticles,
+    shouldBreak,
+    stopGame,
+    WIDTH,
+} from './index';
 import { distance, lerp } from './math';
 import { readFromFile, storeToFile } from './saveFile';
 import { Scene, SceneManager } from './SceneManager';
 
-import { download, getCurrentImage, getCurrentImageMask, isOnTimeout, timeout } from './utils';
+import {
+    download,
+    getCurrentImage,
+    getCurrentImageMask,
+    isOnTimeout,
+    timeout,
+} from './utils';
 import {
     addCharacterMask,
     applyCharacterMap,
@@ -24,11 +43,27 @@ import {
 } from './text';
 import { addParticle, removeParticle, removeParticles } from './particleSystem';
 import { removeEntry, resetEntries, setEntry } from './pausemenu';
-import { applyEffect, applyRenderer, createEffect, createRenderer, removeEffect, removeRenderer } from './effects';
-import { AnimationPlayer, animationBuilder, getAnimationFrame } from './animation';
+import {
+    applyEffect,
+    applyRenderer,
+    createEffect,
+    createRenderer,
+    removeEffect,
+    removeRenderer,
+} from './effects';
+import {
+    AnimationPlayer,
+    animationBuilder,
+    getAnimationFrame,
+} from './animation';
 
 function expose(name: string, variable: any) {
-    Object.defineProperty(globalThis, name, {
+    if (
+        !globalThis.__rainbow32_api ||
+        typeof globalThis.__rainbow32_api !== 'object'
+    )
+        globalThis.__rainbow32_api = {};
+    Object.defineProperty(globalThis.__rainbow32_api, name, {
         get() {
             if (shouldBreak())
                 throw new Error('Game is not currently running!');
@@ -38,9 +73,9 @@ function expose(name: string, variable: any) {
 }
 
 export function exposeToWorld() {
-    if (globalThis.__did_expose) return;
-    
-    globalThis.__did_expose = true;
+    if (globalThis.__rainbow32_api?.__did_expose) return;
+
+    globalThis.__rainbow32_api = { __did_expose: true };
 
     // text
     const fonts = {
@@ -129,6 +164,7 @@ export function exposeToWorld() {
     expose('setOffset', imageUtils.setOffset);
     expose('setPixel', imageUtils.setPixel);
     expose('cls', imageUtils.cls);
+    expose('setpalettetranslation', imageUtils.setPaletteTranslation);
 
     // audio
     expose('setVolume', audioUtils.setVolume);
@@ -151,11 +187,13 @@ export function exposeToWorld() {
     expose('createrenderer', createRenderer);
     expose('applyrenderer', applyRenderer);
     expose('removerenderer', removeRenderer);
-    expose('effects', {screenshake, oldcolors: oldColors})
-    expose('renderers', {bwcolors: blackwhiteColorRenderer})
+    expose('effects', { screenshake, oldcolors: oldColors });
+    expose('renderers', { bwcolors: blackwhiteColorRenderer });
 
     // animations
     expose('animationbuilder', animationBuilder);
     expose('animationplayer', AnimationPlayer);
     expose('getanimationframe', getAnimationFrame);
+
+    expose('run', loadGameByContents);
 }

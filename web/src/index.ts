@@ -18,8 +18,8 @@ import defaultImageData from './defaultImageData';
 
 function makeBtn(classes: string[], type: Button) {
     const div = document.createElement('div');
-    div.style.width = '4rem';
-    div.style.height = '4rem';
+    div.style.width = 'min(4rem,14vw)';
+    div.style.height = 'min(4rem,14vw)';
     div.style.backgroundColor = '#171717';
     div.style.margin = '3px';
     div.style.display = 'flex';
@@ -28,7 +28,7 @@ function makeBtn(classes: string[], type: Button) {
     div.style.userSelect = 'none';
     div.style.cursor = 'pointer';
     div.style.fontWeight = 'bold';
-    div.style.fontSize = '2rem';
+    div.style.fontSize = 'min(2rem,5vw)';
     div.classList.add(...classes);
     div.textContent =
         type === 'down'

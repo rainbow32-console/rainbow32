@@ -3,6 +3,7 @@ import charmap from './charmap';
 import {
     applyImageMask,
     ImageMask,
+    isValidColor,
     parseMask,
     putImage,
     putImageRaw,
@@ -29,7 +30,7 @@ export function calculateBounds(
         centered = false,
     }: { spaceWidth?: number; centered?: boolean } = {}
 ): Line[] {
-    text = ''+text;
+    text = '' + text;
     const lines: Line[] = [];
     let origX = x;
     spaceWidth ||= 5;
@@ -49,7 +50,32 @@ export function calculateBounds(
     let line = 0;
 
     let lineLength = 0;
-    for (let i = 0; i < text.length; ++i) {
+    let i = 0;
+    while (i < text.length) {
+        if (text[i] === '\0') break;
+        if (text[i] === '\f') {
+            ++i;
+            const type = text[i];
+            ++i;
+            if (!type) break;
+            let value = '';
+            while (i < text.length) {
+                if (text[i] === ';') break;
+                else value += text[i];
+                ++i;
+            }
+            let number = Number(value);
+            if (!isNaN(number) && isFinite(number)) {
+                if (type === 'v') y += number;
+                else if (type === 'h') x += number;
+                else if (type === 'y') y = number;
+                else if (type === 'x') x = number;
+                else if (type === 's' && number > 0) i += number;
+            }
+            ++i;
+            continue;
+        }
+
         if (x > maxWidth || text[i] === '\n') {
             lines.push({
                 y,
@@ -59,51 +85,78 @@ export function calculateBounds(
             x = origX;
             if (centered && linePadLeft[++line]) x += linePadLeft[line];
             y += 6;
-            if (text[i] === '\n') continue;
+            if (text[i] === '\n') {
+                ++i;
+                continue;
+            }
         }
         if (text[i] === ' ') {
             lineLength += spaceWidth;
             x += spaceWidth;
+            ++i;
             continue;
         }
         const mask = currentTextMasks[text[i]] || unknownCharacter;
-        if (!mask) {
-            lineLength += 6;
-            x += 6;
-            continue;
-        }
         lineLength += mask.width + 1;
         x += mask.width + 1;
+        ++i;
     }
 
     lines.push({ y, start: origX, end: origX + lineLength - 1 });
     return lines;
 }
 export function calculateWidth(text: string, spaceWidth?: number): number {
-    text = ''+text;
+    text = '' + text;
     let maxLineWidth = 0;
     spaceWidth ||= 5;
     spaceWidth++;
+    let x = 0;
 
     let lineLength = 0;
-    for (let i = 0; i < text.length; ++i) {
+    let i = 0;
+    while (i < text.length) {
+        if (text[i] === '\0') break;
+        if (text[i] === '\f') {
+            ++i;
+            const type = text[i];
+            ++i;
+            if (!type) break;
+            let value = '';
+            while (i < text.length) {
+                if (text[i] === ';') break;
+                else value += text[i];
+                ++i;
+            }
+            let number = Number(value);
+            if (!isNaN(number) && isFinite(number)) {
+                if (type === 'h') lineLength += number;
+                else if (type === 'y') {
+                    if (lineLength > maxLineWidth) maxLineWidth = lineLength;
+                    lineLength = x;
+                } else if (type === 's' && number > 0) i += number;
+            }
+            ++i;
+            continue;
+        }
         if (text[i] === '\n') {
             if (lineLength > maxLineWidth) maxLineWidth = lineLength;
             lineLength = 0;
+            ++i;
             continue;
         }
         if (text[i] === ' ') {
             lineLength += spaceWidth;
+            ++i;
             continue;
         }
         const mask = currentTextMasks[text[i]] || unknownCharacter;
         lineLength += mask.width + 1;
+        ++i;
     }
 
-    if (lineLength > maxLineWidth) return lineLength;
-    else return maxLineWidth;
+    if (lineLength > maxLineWidth) return lineLength - 1;
+    else return maxLineWidth - 1;
 }
-
 export function writeText(
     text: string,
     x: number,
@@ -121,7 +174,7 @@ export function writeText(
         centered?: boolean;
     } = {}
 ): Line[] {
-    text = ''+text;
+    text = '' + text;
     spaceWidth ||= 5;
     const lines: { y: number; start: number; end: number }[] = [];
 
@@ -141,29 +194,44 @@ export function writeText(
     if (color === undefined) color = colors.white;
     let origX = x;
     if (centered && linePadLeft[0]) x += linePadLeft[0];
-    const images = [
-        square(1, 5, color),
-        square(2, 5, color),
-        square(3, 5, color),
-        square(4, 5, color),
-        square(5, 5, color),
-    ];
-    const bg =
-        typeof background === 'number'
-            ? [
-                  square(1, 5, background),
-                  square(2, 5, background),
-                  square(3, 5, background),
-                  square(4, 5, background),
-                  square(5, 5, background),
-              ]
-            : null;
-    const bgLine =
-        typeof background === 'number' ? square(1, 5, background) : null;
 
     let lineLength = 0;
 
-    for (let i = 0; i < text.length; ++i) {
+    let i = 0;
+    while (i < text.length) {
+        if (text[i] === '\0') break;
+        if (text[i] === '\f') {
+            ++i;
+            const type = text[i];
+            ++i;
+            if (!type) break;
+            let value = '';
+            while (i < text.length) {
+                if (text[i] === ';') break;
+                else value += text[i];
+                ++i;
+            }
+            let number = Number(value);
+            if (!isNaN(number) && isFinite(number)) {
+                if (type === 'c' && isValidColor(number) && number !== 0xff)
+                    color = number;
+                else if (type === 'b' && isValidColor(number))
+                    background = number === 0xff ? undefined : number;
+                else if (type === 'v') y += number;
+                else if (type === 'h') {
+                    if (background !== undefined)
+                        putImage(x, y, square(number, 5, background));
+                    if (background !== undefined && lineLength > 0)
+                        putImage(x-1, y, square(1, 5, background));
+                    lineLength += x;
+                    x += number;
+                } else if (type === 'y') y = number;
+                else if (type === 'x') x = number;
+                else if (type === 's' && number > 0) i += number;
+            }
+            ++i;
+            continue;
+        }
         const mask = currentTextMasks[text[i]] || unknownCharacter;
         if (x + mask.width > maxWidth || text[i] === '\n') {
             lines.push({ y, start: origX, end: origX + lineLength - 1 });
@@ -173,24 +241,30 @@ export function writeText(
             if (background && lineLength > 0)
                 putImageRaw(x, y - 1, square(lineLength, 1, background));
             lineLength = 0;
-            if (text[i] === '\n') continue;
+            if (text[i] === '\n') {
+                ++i;
+                continue;
+            }
         }
-        if (text[i] === ' ' && bg) {
+        if (text[i] === ' ' && background !== undefined) {
             putImageRaw(x - 1, y, square(7, 5, background || 0));
         }
         if (text[i] === ' ') {
             lineLength += spaceWidth;
             x += spaceWidth;
+            ++i;
             continue;
         }
-        const image = applyImageMask(images[mask.width - 1], mask);
-        if (image && bg) {
-            putImageRaw(x, y, bg[mask.width - 1]);
+        const image = applyImageMask(square(mask.width, 5, color), mask);
+        if (image && background !== undefined) {
+            putImageRaw(x, y, square(mask.width, 5, background));
             putImage(x, y, image);
         } else if (image) putImageRaw(x, y, image);
-        if (bgLine && lineLength > 0) putImageRaw(x - 1, y, bgLine);
+        if (background !== undefined && lineLength > 0)
+            putImageRaw(x - 1, y, square(1, 5, background));
         lineLength += mask.width + 1;
         x += mask.width + 1;
+        ++i;
     }
 
     lines.push({ y, start: origX, end: origX + lineLength - 1 });

@@ -44,6 +44,11 @@ import { _getCode } from './newCode';
 import _default from '../../rainbow32/src/fonts/default';
 import { b64DecodeUnicode, b64EncodeUnicode } from './b64';
 import { calculateWidth } from '../../rainbow32/src/text';
+import { electronAPI, isInApp } from '../../rainbow32/src/electron';
+import { displayMessage } from '../../rainbow32/src/statusbar';
+
+//@ts-ignore
+if (electronAPI?.prompt) prompt = electronAPI.prompt;
 
 function getColor(color: number): Record<'r' | 'g' | 'b' | 'a', number> {
     const palette = getCurrentPalette();
@@ -326,26 +331,23 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
                 )[0] as HTMLElement
             ).click();
         },
-        new() {
+        async new() {
             if (
                 !confirm('Are you sure?\nAny unsaved changes will be discarded')
             )
                 return;
-            const name = prompt('Name', 'my awesome game');
+            const name = await prompt('Name', 'my awesome game');
             if (!name) return;
-            const author = prompt('Author');
+            const author = await prompt('Author');
             localStorage.setItem('code', _getCode(name));
             localStorage.setItem('audios', '{}');
-            localStorage.setItem(
-                'images',
-                '{"_cartridge": "84:87:' + '8'.repeat(7308) + '"}'
-            );
+            localStorage.setItem('images', '{}');
             localStorage.setItem('masks', '{}');
             localStorage.setItem('animations', '{}');
             localStorage.setItem(
                 'texts',
                 `{"_name": ${JSON.stringify(name)}, "_author": ${JSON.stringify(
-                    author
+                    author || ''
                 )}}`
             );
             localStorage.setItem('name', name);
@@ -357,13 +359,16 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
             ev.preventDefault();
             if (
                 !confirm(
-                    'How to:\n1. Draw a 84x87 image\n2. Click File > Export\nCan you confirm you did all these steps?'
+                    'How to:\n1. Draw a 200x180 image (or load an screenshot)\n2. Click File > Export\nCan you confirm you did all these steps?'
                 )
             )
                 return;
-            const name = prompt('Name:', localStorage.getItem('name') || '');
+            const name = await prompt(
+                'Name:',
+                localStorage.getItem('name') || ''
+            );
             if (!name) return;
-            const author = prompt(
+            const author = await prompt(
                 'Author:',
                 localStorage.getItem('author') || ''
             );
@@ -388,6 +393,33 @@ const menuActions: Record<string, (ev: MouseEvent, el: HTMLDivElement) => any> =
         },
         compile() {
             compileAndDownload();
+        },
+        helpwiki() {
+            window.open(
+                'https://github.com/rainbow32-console/rainbow32/wiki',
+                '_blank'
+            );
+        },
+        helpapi1() {
+            window.open(
+                'https://github.com/rainbow32-console/rainbow32/wiki/API-(constants-&-functions)',
+                '_blank'
+            );
+        },
+        helpapi2() {
+            window.open(
+                'https://github.com/rainbow32-console/rainbow32/wiki/API-(Types)',
+                '_blank'
+            );
+        },
+        helpissues() {
+            window.open(
+                'https://github.com/rainbow32-console/rainbow32/issues',
+                '_blank'
+            );
+        },
+        switchapp() {
+            if (isInApp()) electronAPI?.loadProgram('rainbow32');
         },
     };
 
@@ -2153,7 +2185,7 @@ function setupEditor() {
                                 ? 'never'
                                 : images
                                       .filter(
-                                          (el) => !el.startsWith('__screenshot')
+                                          (el) => !el.startsWith('screenshot')
                                       )
                                       .map((el) => JSON.stringify(el))
                                       .join('|')),
@@ -2306,8 +2338,8 @@ function setupDataManager() {
     if (!idataEl) return alert('No img data element found!');
     if (!iloadBtn) return alert('No img load btn found!');
 
-    addImage = function generateImageBtn(name?: string, data?: string) {
-        if (!name) name = prompt('Name (at least 2 character):') || '';
+    addImage = async function generateImageBtn(name?: string, data?: string) {
+        if (!name) name = (await prompt('Name (at least 2 character):')) || '';
         if (!name || name?.length < 2)
             return alert(
                 'You either exited or gave a name of less than 2 characters!'
@@ -2382,8 +2414,8 @@ function setupDataManager() {
     if (!mdataEl) return alert('No img data element found!');
     if (!mloadBtn) return alert('No img load btn found!');
 
-    function generateMaskBtn(name?: string, data?: string) {
-        if (!name) name = prompt('Name (at least 2 character):') || '';
+    async function generateMaskBtn(name?: string, data?: string) {
+        if (!name) name = (await prompt('Name (at least 2 character):')) || '';
         if (!name || name?.length < 2)
             return alert(
                 'You either exited or gave a name of less than 2 characters!'
@@ -2457,8 +2489,8 @@ function setupDataManager() {
     if (!adataEl) return alert('No img data element found!');
     if (!aloadBtn) return alert('No img load btn found!');
 
-    function generateAudioBtn(name?: string, data?: string) {
-        if (!name) name = prompt('Name (at least 2 character):') || '';
+    async function generateAudioBtn(name?: string, data?: string) {
+        if (!name) name = (await prompt('Name (at least 2 character):')) || '';
         if (!name || name?.length < 2)
             return alert(
                 'You either exited or gave a name of less than 2 characters!'
@@ -2523,9 +2555,9 @@ function setupDataManager() {
         textElement
     );
 
-    function generateTextBtn(name?: string, data?: string) {
-        if (!name) name = prompt('Name (at least 2 character):') || '';
-        data ||= prompt('Data') || '';
+    async function generateTextBtn(name?: string, data?: string) {
+        if (!name) name = (await prompt('Name (at least 2 character):')) || '';
+        data ||= (await prompt('Data')) || '';
         if (!data || !name) return;
         texts[name] = data;
         sync();
@@ -2541,8 +2573,8 @@ function setupDataManager() {
             peekBtn,
         ]);
 
-        overwriteBtn.addEventListener('click', () => {
-            const data = prompt('New Data', texts[name!]);
+        overwriteBtn.addEventListener('click', async () => {
+            const data = await prompt('New Data', texts[name!]);
             if (data === '') {
                 if (confirm('Do you want to remove ' + name)) {
                     el.remove();
@@ -2588,8 +2620,8 @@ function setupDataManager() {
         animationsElement
     );
 
-    function generateAnimationsBtn(name?: string, data?: AnimationData) {
-        if (!name) name = prompt('Name (at least 2 character):') || '';
+    async function generateAnimationsBtn(name?: string, data?: AnimationData) {
+        if (!name) name = (await prompt('Name (at least 2 character):')) || '';
         data ||= getAnimation();
         if (!data || !name) return;
         animations[name] = data;
@@ -2625,14 +2657,17 @@ function setupDataManager() {
         loadBtn.addEventListener('click', () => {
             if (!animations[name!]) return;
             setAnimation(animations[name!]);
-        })
+        });
 
         animationsElement.append(el);
         return el;
     }
 
-    for (const [k, v] of Object.entries(animations)) generateAnimationsBtn(k, v);
-    addAnimationsButtons.addEventListener('click', () => generateAnimationsBtn());
+    for (const [k, v] of Object.entries(animations))
+        generateAnimationsBtn(k, v);
+    addAnimationsButtons.addEventListener('click', () =>
+        generateAnimationsBtn()
+    );
 
     //#endregion
 }
@@ -2750,7 +2785,7 @@ function setupUtils() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.imageSmoothingEnabled = false;
-        customWriteText(text, ctx, 0, 0, Infinity, colorselect.selectedIndex);
+        customWriteText2x(text, ctx, 0, 0, Infinity, colorselect.selectedIndex);
         openImagePopup(canvas.toDataURL());
     });
 }
@@ -2777,7 +2812,13 @@ function setupAnimations() {
     ) as HTMLInputElement | HTMLCanvasElement;
     element.append(
         h('h3', {}, [text('animations')]),
-        row(h('h3', {}, [text('type:')]), typeSelector, addFrame, removeFrame, playButton),
+        row(
+            h('h3', {}, [text('type:')]),
+            typeSelector,
+            addFrame,
+            removeFrame,
+            playButton
+        ),
         current
     );
 
@@ -2997,26 +3038,23 @@ function setupAnimations() {
         currentEl = div;
     }
 
-    addFrame.addEventListener(
-        'click',
-        () => {
-            if (type === 'text') {
-                frames.push({ value: '', time: 0 });
-                rerender();
-            } else {
-                const opts =
-                    type === 'image'
-                        ? Object.keys(getImages())
-                        : Object.keys(getMasks());
-                if (opts.length < 1) return;
-                frames.push({
-                    time: 0,
-                    value: opts[0],
-                });
-                rerender();
-            }
+    addFrame.addEventListener('click', () => {
+        if (type === 'text') {
+            frames.push({ value: '', time: 0 });
+            rerender();
+        } else {
+            const opts =
+                type === 'image'
+                    ? Object.keys(getImages())
+                    : Object.keys(getMasks());
+            if (opts.length < 1) return;
+            frames.push({
+                time: 0,
+                value: opts[0],
+            });
+            rerender();
         }
-    );
+    });
     removeFrame.addEventListener('click', () => {
         if (frames.length < 1) return;
         frames.pop();
@@ -3035,6 +3073,11 @@ window.addEventListener('load', () => {
     document.body
         .getElementsByClassName('keybinds')[0]
         ?.addEventListener('mousedown', () => (lastSelected = 'keybinds'));
+
+    if (!isInApp() || !electronAPI) {
+        const elements = document.getElementsByClassName('app-only');
+        for (let i = 0; i < elements.length; ++i) elements.item(i).remove();
+    }
 
     function render() {
         if (lastSelected === 'music') loadMusic();
@@ -3055,17 +3098,27 @@ window.addEventListener('load', () => {
 window.addEventListener(
     'keydown',
     (ev) => {
-        if (lastSelected === 'compiled' && ev.key === 'F2') {
-            const name = `__screenshot-${Date.now()}`;
-            const image = stringifyImage({
-                width: WIDTH,
-                height: HEIGHT,
-                buf: memory.subarray(1),
-            });
-            addImage(name, image);
+        if (ev.key === 'F3' && lastSelected !== 'editor') {
             ev.preventDefault();
             ev.cancelBubble = true;
             ev.stopPropagation?.();
+            menuActions.switchapp(ev as any, undefined as any);
+            return;
+        }
+        if (lastSelected === 'compiled' && ev.key === 'F2') {
+            const now = new Date();
+            const name = `screenshot-${now.getDate()}-${now.getMonth()}-${now.getFullYear()}-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+            const image = {
+                width: WIDTH,
+                height: HEIGHT,
+                buf: memory.subarray(1),
+            };
+            addImage(name, stringifyImage(image));
+            if (!isInApp()) download(imgToPng(image), name + '.png');
+            ev.preventDefault();
+            ev.cancelBubble = true;
+            ev.stopPropagation?.();
+            displayMessage('screenshot saved');
         }
         if (lastSelected === 'compiled') return;
         if (ev.key === 'n' && ev.altKey)
@@ -3110,7 +3163,6 @@ function awaitLoad(el: HTMLImageElement): Promise<void> {
         el.addEventListener('error', rej);
     });
 }
-
 export function putImageData(
     ctx: CanvasRenderingContext2D,
     data: ImageData | null,
@@ -3122,7 +3174,6 @@ export function putImageData(
     blendImageData(bgData, data);
     ctx.putImageData(bgData, x, y);
 }
-
 export function blendImageData(data1: ImageData, data2: ImageData) {
     if (data1.height !== data2.height || data1.width !== data2.width)
         throw new Error('Width or height do not match between data1 and data2');
@@ -3152,8 +3203,30 @@ export function blendImageData(data1: ImageData, data2: ImageData) {
             data1.data[offset + 3] = Math.max(a2, data1.data[offset + 3]);
         }
 }
+function scaleImage(scale: number, image: Image): Image {
+    scale = Math.floor(scale);
+    if (scale < 1) return { buf: new Uint8Array(0), height: 0, width: 0 };
+    else if (scale === 1) return image;
+    const newimg: Image = {
+        height: image.height * scale,
+        width: image.width * scale,
+        buf: new Uint8Array(image.buf.length * scale ** 2),
+    };
+    const buf = newimg.buf;
 
-function customWriteText(
+    for (let h = 0; h < image.height; ++h) {
+        for (let w = 0; w < image.width; ++w) {
+            for (let _w = 0; _w < scale; ++_w) {
+                for (let _h = 0; _h < scale; ++_h) {
+                    buf[(h * scale + _h) * newimg.width + (w * scale + _w)] =
+                        image.buf[h * image.width + w];
+                }
+            }
+        }
+    }
+    return newimg;
+}
+function customWriteText2x(
     text: string,
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -3175,32 +3248,31 @@ function customWriteText(
         if (x > maxWidth || text[i] === '\n') {
             if (text[i] === '\n') {
                 x = origX;
-                y += 6;
+                y += 12;
             }
             continue;
         }
         if (text[i] === ' ') {
-            x += 4;
+            x += 8;
             continue;
         }
         const mask = _default[text[i]];
         if (!mask) {
-            x += 4;
+            x += 8;
             console.log('Text: No mask found for "%s"', text[i]);
             continue;
         }
         const data = imgToImageData(
-            applyImageMask(images[mask.width - 1], mask)
+            scaleImage(2, applyImageMask(images[mask.width - 1], mask))
         );
         putImageData(ctx, data, x, y);
-        x += mask.width + 1;
+        x += mask.width * 2 + 2;
     }
 }
-
 async function codeToCartridge(image: string, name: string, author: string) {
     const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 150;
+    canvas.width = 246;
+    canvas.height = 279;
     canvas.style.imageRendering = 'pixelated';
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('your browser does not support use of canvas!');
@@ -3211,17 +3283,16 @@ async function codeToCartridge(image: string, name: string, author: string) {
     ctx.drawImage(img, 0, 0);
 
     const parsed = parseImage(image);
-    if (parsed.width !== 84 || parsed.height !== 87)
-        throw new Error('Image has to be 84x87');
-    ctx.putImageData(imgToImageData(square(84, 87, 8))!, 22, 17);
-    putImageData(ctx, imgToImageData(parsed), 22, 17);
+    if (parsed.width !== 200 || parsed.height !== 180)
+        throw new Error('Image has to be 200x180');
+    putImageData(ctx, imgToImageData(parsed), 22, 23);
 
-    customWriteText(
+    customWriteText2x(
         `${name.toLowerCase()}\nby ${author.toLowerCase()}`,
         ctx,
-        22,
-        115,
-        106
+        24,
+        232,
+        196
     );
     const data = await fetch(canvas.toDataURL('image/png'))
         .then((res) => res.arrayBuffer())
@@ -3251,5 +3322,4 @@ async function codeToCartridge(image: string, name: string, author: string) {
     if (!data) throw new Error('Failed to compile');
     return 'data:image/png;base64,' + btoa(data);
 }
-
 (window as any).compile = compileTypescript;

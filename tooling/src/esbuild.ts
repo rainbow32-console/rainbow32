@@ -50,7 +50,7 @@ export async function compile(code: string) {
     const audios: Record<string, Audio> = {};
 
     for (const k of Object.keys(stringImgs)) {
-        if (k.startsWith('__screenshot')) continue;
+        if (k.startsWith('screenshot')) continue;
         try {
             images[k] = parseImage(stringImgs[k]);
         } catch {}
@@ -136,6 +136,8 @@ export async function compileTypescript(code: string): Promise<string> {
     const res = await esbuild.transform(globalcode + ';' + code, {
         minify: true,
         loader: 'ts',
+        minifySyntax: true,
+        treeShaking: true,
     });
     return res.code;
 }

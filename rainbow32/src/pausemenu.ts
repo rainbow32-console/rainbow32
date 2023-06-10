@@ -7,8 +7,15 @@ import {
     unpause,
     WIDTH,
 } from '.';
-import { setVolume, volume } from './audioUtils';
-import { cls, markAsDirty, putImage, square } from './imageUtils';
+import { muted, setVolume, toggleMute, volume } from './audioUtils';
+import {
+    cls,
+    getColorTranslations,
+    markAsDirty,
+    putImage,
+    setPaletteTranslation,
+    square,
+} from './imageUtils';
 import { colors } from './namespacedcolors';
 import { calculateWidth, writeText } from './text';
 
@@ -43,11 +50,9 @@ export function renderPauseMenu() {
         else str += ' ';
         str += entries[i]?.name || '';
     }
-    str += `\n${
-        selected === entries.length + 1 ? '▶' : ' '
-    }volume: ${volume}%\n${
-        selected === entries.length + 2 ? '▶' : ' '
-    }reset cartridge`;
+    str += `\n${selected === entries.length + 1 ? '▶' : ' '}volume: ${
+        muted ? '---' : volume
+    }%\n${selected === entries.length + 2 ? '▶' : ' '}reset cartridge`;
 
     let maxWidth = calculateWidth(str) + 3;
     let height = str.split('\n').length * 6 + 3;
@@ -75,6 +80,7 @@ export function renderPauseMenu() {
             else if (selected === entries.length + 1) {
                 if (buttons.left.down) setVolume(volume - 1);
                 if (buttons.right.down) setVolume(volume + 1);
+                if (buttons.u.press) toggleMute();
             } else if (selected === entries.length + 2) resetCart();
             else entries[selected - 1]?.callback();
         }
@@ -90,8 +96,11 @@ export function setEntry(index: number, entry: MenuEntry | undefined) {
 export function removeEntry(index: number) {
     entries = entries.filter((_, i) => i !== index);
 }
+let lastColorPalette: Record<number, number> = {};
 export function resetSelected() {
     selected = 0;
+    lastColorPalette = { ...getColorTranslations() };
+    setPaletteTranslation();
     old_image_buf = new Uint8Array(memory.length);
     for (let i = 1; i < memory.length; ++i) {
         old_image_buf[i - 1] = memory[i];
@@ -99,6 +108,8 @@ export function resetSelected() {
 }
 export function putOldImage() {
     markAsDirty();
+    for (const k in lastColorPalette)
+        setPaletteTranslation(Number(k), lastColorPalette[k]);
     for (let i = 0; i < old_image_buf.length; ++i) {
         memory[i + 1] = old_image_buf[i];
     }

@@ -21,6 +21,7 @@ registergame({
         isrunning=false;
     },
     update(_dt){
+        cls();
         cursor(screen.width/2,screen.height/2);
         print("hello,",);
     }

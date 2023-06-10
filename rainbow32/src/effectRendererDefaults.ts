@@ -24,7 +24,7 @@ export const screenshake = createEffect<number>(
 
 export const blackwhiteColorRenderer = createRenderer<number>(
     '2bitColorRenderer',
-    (_, col, colidx) =>
+    (_real, col, _p, colidx) =>
         col === 0 || col === 0xff ? getColor(0) : getColor(colidx)
 );
 

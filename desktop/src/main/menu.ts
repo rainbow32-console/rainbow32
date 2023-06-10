@@ -144,29 +144,35 @@ export default class MenuBuilder {
       label: 'Help',
       submenu: [
         {
-          label: 'Learn More',
-          click() {
-            shell.openExternal('https://electronjs.org');
-          },
-        },
-        {
-          label: 'Documentation',
+          label: 'Wiki',
           click() {
             shell.openExternal(
-              'https://github.com/electron/electron/tree/main/docs#readme'
+              'https://github.com/rainbow32-console/rainbow32/wiki'
             );
           },
         },
         {
-          label: 'Community Discussions',
+          label: 'API (constants & functions)',
           click() {
-            shell.openExternal('https://www.electronjs.org/community');
+            shell.openExternal(
+              'https://github.com/rainbow32-console/rainbow32/wiki/API-(constants-&-functions)'
+            );
+          },
+        },
+        {
+          label: 'API (Types)',
+          click() {
+            shell.openExternal(
+              'https://github.com/rainbow32-console/rainbow32/wiki/API-(Types)'
+            );
           },
         },
         {
           label: 'Search Issues',
           click() {
-            shell.openExternal('https://github.com/electron/electron/issues');
+            shell.openExternal(
+              'https://github.com/rainbow32-console/rainbow32/issues'
+            );
           },
         },
       ],
@@ -177,7 +183,7 @@ export default class MenuBuilder {
     return [subMenuAbout, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
   }
 
-  buildDefaultTemplate(): MenuItemConstructorOptions[]  {
+  buildDefaultTemplate(): MenuItemConstructorOptions[] {
     return [
       {
         label: '&File',
@@ -215,8 +221,8 @@ export default class MenuBuilder {
           {
             label: 'Toggle &Developer Tools',
             accelerator: 'Alt+Ctrl+I',
-            click: () => {
-              this.mainWindow.webContents.toggleDevTools();
+            click: (_m, wind) => {
+              wind?.webContents.toggleDevTools();
             },
           },
           {
@@ -237,33 +243,138 @@ export default class MenuBuilder {
         label: 'Help',
         submenu: [
           {
-            label: 'Learn More',
-            click() {
-              shell.openExternal('https://electronjs.org');
-            },
-          },
-          {
-            label: 'Documentation',
+            label: 'Wiki',
             click() {
               shell.openExternal(
-                'https://github.com/electron/electron/tree/main/docs#readme'
+                'https://github.com/rainbow32-console/rainbow32/wiki'
               );
             },
           },
           {
-            label: 'Community Discussions',
+            label: 'API (constants & functions)',
             click() {
-              shell.openExternal('https://www.electronjs.org/community');
+              shell.openExternal(
+                'https://github.com/rainbow32-console/rainbow32/wiki/API-(constants-&-functions)'
+              );
+            },
+          },
+          {
+            label: 'API (Types)',
+            click() {
+              shell.openExternal(
+                'https://github.com/rainbow32-console/rainbow32/wiki/API-(Types)'
+              );
             },
           },
           {
             label: 'Search Issues',
             click() {
-              shell.openExternal('https://github.com/electron/electron/issues');
+              shell.openExternal(
+                'https://github.com/rainbow32-console/rainbow32/issues'
+              );
             },
           },
         ],
       },
     ];
   }
+}
+
+export function getMiscMenu(): Menu {
+  function buildDarwinTemplate(): MenuItemConstructorOptions[] {
+    const subMenuAbout: DarwinMenuItemConstructorOptions = {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Quit',
+          accelerator: 'Command+W',
+          click: (_m, wind) => {
+            wind?.close();
+          },
+        },
+      ],
+    };
+    const subMenuEdit: DarwinMenuItemConstructorOptions = {
+      label: 'View',
+      submenu: [
+        {
+          label: '&Reload',
+          accelerator: 'Ctrl+R',
+          click: (_m, wind) => {
+            wind?.webContents.reload();
+          },
+        },
+        {
+          label: 'Toggle &Full Screen',
+          accelerator: 'Alt+Command+F',
+          click: (_, wind) => {
+            wind?.setFullScreen(!wind.isFullScreen());
+          },
+        },
+        {
+          label: 'Toggle &Developer Tools',
+          accelerator: 'Alt+Command+I',
+          click: (_m, wind) => {
+            wind?.webContents.toggleDevTools();
+          },
+        },
+      ],
+    };
+
+    return [subMenuAbout, subMenuEdit];
+  }
+
+  function buildDefaultTemplate(): MenuItemConstructorOptions[] {
+    return [
+      {
+        label: '&File',
+        submenu: [
+          {
+            label: '&Open',
+            accelerator: 'Ctrl+O',
+          },
+          {
+            label: '&Close',
+            accelerator: 'Ctrl+W',
+            click: (_m, wind) => {
+              wind?.close();
+            },
+          },
+        ],
+      },
+      {
+        label: '&View',
+        submenu: [
+          {
+            label: '&Reload',
+            accelerator: 'Ctrl+R',
+            click: (_m, wind) => {
+              wind?.webContents.reload();
+            },
+          },
+          {
+            label: 'Toggle &Full Screen',
+            accelerator: 'F11',
+            click: (_m, wind) => {
+              wind?.setFullScreen(!wind?.isFullScreen());
+            },
+          },
+          {
+            label: 'Toggle &Developer Tools',
+            accelerator: 'Alt+Ctrl+I',
+            click: (_m, wind) => {
+              wind?.webContents.toggleDevTools();
+            },
+          },
+        ],
+      },
+    ];
+  }
+
+  const template =
+    process.platform === 'darwin'
+      ? buildDarwinTemplate()
+      : buildDefaultTemplate();
+
+  return Menu.buildFromTemplate(template);
 }

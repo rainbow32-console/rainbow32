@@ -1,7 +1,10 @@
+import { isInApp, electronAPI } from './electron';
 import {
     contextState,
     loadMusic,
+    playSound,
     recreateContext,
+    toggleMute,
     unloadMusic,
 } from './audioUtils';
 import {
@@ -9,8 +12,9 @@ import {
     getPixel,
     updateEffect as updateEffects,
 } from './effects';
-import { canvasFullScreen, isFocused, show } from './electron';
+import { canvasFullScreen, show } from './electron';
 import { exposeToWorld } from './expose';
+import _default from './fonts/default';
 import {
     cls,
     ColorPalette,
@@ -20,6 +24,7 @@ import {
     removeDirtyMark,
     setCurrentPalette,
     setOffset,
+    setPaletteTranslation,
 } from './imageUtils';
 import { removeParticles, updateParticles } from './particleSystem';
 import {
@@ -32,10 +37,11 @@ import { Scene, SceneManager } from './SceneManager';
 import {
     putStartupImage,
     runErrorAnimation,
-    runLoadAnimation,
     runStartupAnimation,
 } from './startup';
+import { applyCharacterMap, clearCharacterMap } from './text';
 import { download } from './utils';
+import { displayMessage, resetStatusbar, updateStatusBar } from './statusbar';
 
 export type Button = 'up' | 'down' | 'left' | 'right' | 'u' | 'i' | 'o' | 'p';
 export const buttonIds: Readonly<Button[]> = [
@@ -51,6 +57,11 @@ export const buttonIds: Readonly<Button[]> = [
 
 export const WIDTH = 200;
 export const HEIGHT = 180;
+/**
+ * Memory Layout (bytes):
+ * 0x0-0x1: buttons
+ * 0x1-0x8ca1: screen
+ */
 export const memory: Uint8Array = new Uint8Array(1 + WIDTH * HEIGHT);
 export function isPressed(button: Button): boolean {
     const id = buttonIds.indexOf(button);
@@ -61,7 +72,6 @@ export function isPressed(button: Button): boolean {
 
 export function changeButtonState(value: boolean, button: Button) {
     if (!frame || !frame.isConnected) return;
-    if (isFocused()) return;
     const buttonId = buttonIds.indexOf(button);
     if (buttonId < 0) return;
     memory[0] &= 0xff ^ (1 << buttonId);
@@ -144,7 +154,7 @@ const buttonElements: Record<Button | 'start' | 'stop', HTMLDivElement> =
     {} as any;
 
 window.addEventListener('keydown', (ev) => {
-    if (isFocused() || !frame || !frame.isConnected) return;
+    if (!frame || !frame.isConnected) return;
     // wasd
     if (ev.key === 'w') changeButtonState(true, 'up');
     else if (ev.key === 'a') changeButtonState(true, 'left');
@@ -189,10 +199,13 @@ window.addEventListener('keydown', (ev) => {
         for (const [k, v] of Object.entries(_renderTimes))
             console.log('%dms: %d', k, v);
         console.log('JSON:', { ...debugData, renderTimes });
+        displayMessage('dumped debug log');
+    } else if (ev.key === 'F3') {
+        if (isInApp()) electronAPI?.loadProgram('sdk');
     }
 });
 window.addEventListener('keyup', (ev) => {
-    if (isFocused() || !frame || !frame.isConnected) return;
+    if (!frame || !frame.isConnected) return;
     // wasd
     if (ev.key === 'w') changeButtonState(false, 'up');
     else if (ev.key === 'a') changeButtonState(false, 'left');
@@ -226,11 +239,16 @@ export function renderParticles() {
     updateParticles(lastDt);
 }
 
+let renderFn = () => {};
+
 function render(dt: number) {
+    if (Math.abs(dt - previous) < 1) return;
     try {
         const start = Date.now();
-        if (unfocused || !frame || !frame.isConnected || !done)
-            return (unfocused = false);
+        if (unfocused || !frame || !frame.isConnected || !done) {
+            unfocused = false;
+            return;
+        }
 
         callEvent('beforeRender', [ctx, dt - previous]);
 
@@ -245,7 +263,7 @@ function render(dt: number) {
         if (oldPaused !== paused && paused) resetSelected();
         if (oldPaused !== paused && !paused) putOldImage();
         oldPaused = paused;
-        if (ctx && !isFocused()) {
+        if (ctx) {
             if (!paused && currentGame) {
                 lastDt = dt - previous;
                 if (isCollectingDebugData) debugData['Update State'] = 'Global';
@@ -255,7 +273,9 @@ function render(dt: number) {
                     debugData['Update State'] = 'Particles';
                 SceneManager.update(lastDt);
             }
+            renderFn();
             if (paused) renderPauseMenu();
+            updateStatusBar();
             if (isCollectingDebugData) debugData['Update State'] = 'Screen';
             const buf = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
             if (isDirty) {
@@ -264,7 +284,10 @@ function render(dt: number) {
                     for (let w = 0; w < WIDTH; ++w) {
                         const color =
                             !paused && currentGame
-                                ? getPixel(memory[h * WIDTH + w + 1])
+                                ? getPixel(memory[h * WIDTH + w + 1], {
+                                      x: w,
+                                      y: h,
+                                  })
                                 : getColor(memory[h * WIDTH + w + 1]);
                         const offset = (h * WIDTH + w) * 4;
                         buf[offset] = color.r;
@@ -281,8 +304,10 @@ function render(dt: number) {
         previous = dt;
         pressedButtonsPreviously[0] = memory[0];
         renderTimes.push(Date.now() - start);
-        if (Date.now() - start > 30)
+        if (Date.now() - start > 30) {
             console.warn('[Violation] Screen Update took over 30 milliseconds');
+            displayMessage('warn: lagging!');
+        }
         callEvent('afterRender', [ctx, dt - previous]);
 
         if (isCollectingDebugData) {
@@ -428,13 +453,17 @@ export type Rainbow32ConsoleElementGenerator = (
 let paused: boolean;
 
 function startRender(dt: number) {
-    previous = dt;
-    unfocused = false;
+    if (unfocused) return (unfocused = false);
+    previous = dt - 16;
     render(dt);
 }
 
 export function isLoaded() {
     return done && frame && frame.isConnected;
+}
+
+export function getCurrentImage() {
+    return ctx?.canvas.toDataURL();
 }
 
 export async function onLoad(
@@ -488,9 +517,12 @@ export async function onLoad(
     requestAnimationFrame(startRender);
     const p = runStartupAnimation();
 
+    resetStatusbar();
+    onUnload.push(resetStatusbar);
+
     function keyDown(ev: KeyboardEvent) {
         if (!frame || !frame.isConnected) return;
-        if (ev.key === 'F2' && !canvasFullScreen()) {
+        if (ev.key === 'F2') {
             ev.preventDefault();
             const now = new Date();
             download(
@@ -499,7 +531,9 @@ export async function onLoad(
                     now.getDay() + 1
                 }-${now.getHours()}-${now.getSeconds()}-${now.getMilliseconds()}.png`
             );
+            displayMessage('screenshot saved');
         } else if (ev.key === ' ') paused = !paused;
+        else if (ev.key === 'm' && ev.ctrlKey) toggleMute();
     }
     window.addEventListener('keydown', keyDown);
 
@@ -602,12 +636,12 @@ export async function onLoad(
         if (!reset.isConnected) element.append(reset);
 
         start.addEventListener('click', startGame);
-        reset.addEventListener('click', stopGame);
+        reset.addEventListener('click', () => stopGame());
 
         onUnload.push(() => {
             input.removeEventListener('change', loadFromEvent as any);
             start.removeEventListener('click', startGame);
-            reset.removeEventListener('click', stopGame);
+            reset.removeEventListener('click', () => stopGame());
         });
     } else {
         generated?.buttons?.start?.remove();
@@ -664,6 +698,7 @@ export async function loadGame(game: GameFile) {
     if (!ctx) return;
     setOffset(0, 0);
     try {
+        renderFn = () => {};
         resetEntries();
         await loadMusic();
         if (isCollectingDebugData) {
@@ -676,17 +711,36 @@ export async function loadGame(game: GameFile) {
         currentGame = game;
         if (game.palette) setCurrentPalette(game.palette);
         ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        clearAllEffectsAndRenderer();
+        setPaletteTranslation();
+        clearCharacterMap();
+        applyCharacterMap(_default);
+        setCurrentPalette(defaultPalette);
         game?.init?.();
         if (game.scenes) SceneManager.setscenes(game.scenes, game.defaultScene);
         callEvent('afterLoad', [game]);
     } catch (e: any) {
-        stopGame();
+        stopGame(true);
         console.error('Could not load Game!\n╰─> %s', e?.stack || e);
-        runErrorAnimation();
+        (async () => {
+            await playSound(
+                { octave: 4, sharp: false, sound: 'c' },
+                'square-wave',
+                0.2,
+                0.1
+            );
+            await playSound(
+                { octave: 3, sharp: false, sound: 'c' },
+                'square-wave',
+                0.2,
+                0.2
+            );
+        })();
+        renderFn = () => runErrorAnimation(e);
     }
 }
 
-export function stopGame(): Promise<void> {
+export function stopGame(noani?: boolean): Promise<void> {
     removeParticles();
     if (isCollectingDebugData) {
         debugData['Game State'] = 'Idle';
@@ -695,6 +749,9 @@ export function stopGame(): Promise<void> {
     if (!currentGame) return new Promise((res) => res());
     const _game = currentGame;
     clearAllEffectsAndRenderer();
+    setPaletteTranslation();
+    clearCharacterMap();
+    applyCharacterMap(_default);
     _game.remove?.();
     setCurrentPalette(defaultPalette);
     SceneManager.setscenes([]);
@@ -703,6 +760,7 @@ export function stopGame(): Promise<void> {
     resetEntries();
     if (ctx) putStartupImage();
     callEvent('afterStop', []);
+    if (!noani) renderFn = putStartupImage;
     return new Promise((res) => requestAnimationFrame(res as any));
 }
 
@@ -749,17 +807,27 @@ let lastContents: string = '';
 
 let isLoadingGame = false;
 
-export async function loadGameByContents(contents: string | undefined | null) {
+async function runCode(code: string, norestrict: boolean) {
+    return await new Function(
+        'with({' +
+            (norestrict ? '' : 'electron:undefined') +
+            '}){\n' +
+            code +
+            '\n}'
+    ).call({});
+}
+
+export async function loadGameByContents(
+    contents: string | undefined | null,
+    norestrict?: boolean
+) {
     if (!frame || !frame.isConnected || !contents) return;
     await stopGame();
 
     lastContents = contents;
-    const p = runLoadAnimation();
     try {
         isLoadingGame = true;
-        await (async function () {
-            return await eval(contents);
-        })();
+        await runCode(contents, !!norestrict);
         if (!(globalThis as any).__registeredGame) throw new Error();
         const game = (globalThis as any).__registeredGame as
             | GameFile
@@ -767,12 +835,25 @@ export async function loadGameByContents(contents: string | undefined | null) {
         if (!game) throw new Error();
         delete (globalThis as any).__registeredGame;
         console.log('Loading Game %s', game?.name || 'no name specified', game);
-        await Promise.allSettled([p]);
         await loadGame(game as GameFile);
     } catch (e: any) {
-        stopGame();
+        stopGame(true);
         console.error('Could not load file!\n╰─> %s', e?.stack || e);
-        runErrorAnimation(e);
+        (async () => {
+            await playSound(
+                { octave: 4, sharp: false, sound: 'c' },
+                'square-wave',
+                0.2,
+                0.1
+            );
+            await playSound(
+                { octave: 3, sharp: false, sound: 'c' },
+                'square-wave',
+                0.2,
+                0.2
+            );
+        })();
+        renderFn = () => runErrorAnimation(e);
     }
     delete (globalThis as any).__registeredGame;
     isLoadingGame = false;
@@ -871,9 +952,4 @@ window.addEventListener('resize', () => {
         ctx.canvas.style.height = buttonElements.up.isConnected
             ? '50%'
             : '100%';
-    if (
-        window.outerWidth <
-        window.outerHeight >> (buttonElements.up.isConnected ? 1 : 0)
-    )
-        console.log('too short');
 });

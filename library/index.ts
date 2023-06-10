@@ -1,3 +1,41 @@
+export type PromiseConstructorLike = new <T>(
+    executor: (
+        resolve: (value: T | PromiseLike<T>) => void,
+        reject: (reason?: any) => void
+    ) => void
+) => PromiseLike<T>;
+export interface PromiseLike<t> {
+    /**
+     * attaches callbacks for the resolution and/or rejection of the promise.
+     * @param onfulfilled the callback to execute when the promise is resolved.
+     * @param onrejected the callback to execute when the promise is rejected.
+     * @returns a promise for the completion of which ever callback is executed.
+     */
+    then<tres1 = t, tres2 = never>(
+        onfulfilled?:
+            | ((value: t) => tres1 | promiselike<tres1>)
+            | undefined
+            | null,
+        onrejected?:
+            | ((reason: any) => tres2 | promiselike<tres2>)
+            | undefined
+            | null
+    ): promiselike<tres1 | tres2>;
+}
+export const array: {
+    new <t>(...values: t[]): t[];
+    new <t = any>(length: number): t[];
+    <t>(...values: t[]): t[];
+    <t = any>(length: number): t[];
+    isarray(value: any): value is any[];
+    from<t>(
+        value: arraylike<t>,
+        mapfn?: (val: t, index: number) => t,
+        thisarg?: any
+    ): t[];
+    of<t>(...values: t[]): t[];
+} = globalThis.Array as any;
+array.isarray = globalThis.Array.isArray;
 export interface fn {
     /**
      * calls the function, substituting the specified object for the this value of the function, and the specified array for the arguments of the function.
@@ -23,19 +61,30 @@ export interface fn {
     readonly name: string;
     readonly length: number;
 }
-export type Function = fn;
+export interface Function extends fn {}
 export interface String {
     length: number;
     repeat(amount: number): string;
 }
-export interface Array<t> {
+export interface array<t> {
     readonly length: number;
     [index: number]: t;
     push(...values: t[]): number;
     unshift(...values: t[]): number;
     pop(): void;
     shift(...values: t[]): void;
+    fill(value: t): t[];
+    /**
+     * @deprecated use mmap() or arraypipes
+     */
+    map<k>(predicate: (val: t, index: number, array: t[]) => k): k[];
+    /**
+     * @deprecated use arraypipes (for 1+ maps or filters) and mmap()/filter() (for just 1 map or filter)
+     */
+    filter(predicate: (val: t, index: number, array: t[]) => boolean): t[];
+    includes(value: t): boolean;
 }
+export interface Array<t> extends array<t> {}
 export interface promiselike<t> {
     /**
      * attaches callbacks for the resolution and/or rejection of the promise.
@@ -54,7 +103,7 @@ export interface promiselike<t> {
             | null
     ): promiselike<tres1 | tres2>;
 }
-export interface Promise<t> {
+export interface promise<t> {
     /**
      * attaches callbacks for the resolution and/or rejection of the promise.
      * @param onfulfilled the callback to execute when the promise is resolved.
@@ -92,15 +141,15 @@ type awaited<t> = t extends null | undefined
         : never
     : t;
 
-export type promise<t> = Promise<t>;
-export const Promise: {
+export interface Promise<t> extends promise<t> {}
+export const promise: {
     /**
      * creates a promise that is resolved with an array of results when all of the provided promises
      * resolve, or rejected when any promise is rejected.
      * @param values an iterable of promises.
      * @returns a new promise.
      */
-    all<t>(values: promiselike<t>): promise<awaited<t>[]>;
+    all<t>(values: promiselike<t>[]): promise<awaited<t>[]>;
 
     /**
      * Creates a Promise that is resolved or rejected when any of the provided Promises are resolved
@@ -108,7 +157,7 @@ export const Promise: {
      * @param values An iterable of Promises.
      * @returns A new Promise.
      */
-    race<T>(values: promiselike<T>): promise<awaited<T>>;
+    race<t>(values: promiselike<t>[]): promise<awaited<t>>;
 
     /**
      * creates a new promise.
@@ -143,15 +192,15 @@ export const Promise: {
      */
     resolve<t>(value: t | promiselike<t>): promise<t>;
 } = globalThis.Promise as any;
-export const promise = Promise;
+export const Promise = promise;
 export const globalthis = globalThis as any;
-export interface arraylike<T> {
+export interface arraylike<t> {
     readonly length: number;
-    readonly [n: number]: T;
+    readonly [n: number]: t;
 }
-export interface arraylikereadable<T> {
+export interface arraylikereadable<t> {
     readonly length: number;
-    [n: number]: T;
+    [n: number]: t;
 }
 export interface typedarrayconstructor<t> {
     readonly prototype: t;
@@ -177,11 +226,11 @@ export interface typedarrayconstructor<t> {
      * @param mapfn A mapping function to call on every element of the array.
      * @param thisarg Value of 'this' used to invoke the mapfn.
      */
-    from<T>(
-        arraylike: arraylike<T>,
-        mapfn: (v: T, k: number) => number,
+    from<t>(
+        arraylike: arraylike<t>,
+        mapfn: (v: t, k: number) => number,
         thisarg?: any
-    ): T;
+    ): t;
 }
 export interface arraybuffer {
     /**
@@ -256,19 +305,19 @@ export function tostring(value: any) {
 }
 export const tostr = tostring;
 function importExposed(name: string): any {
-    return (globalThis as any)[name];
+    return (globalThis as any).__rainbow32_api[name];
 }
 
-export const sqrt = Math.sqrt;
-export const flr = Math.floor;
-export const ceil = Math.ceil;
-export const abs = Math.abs;
-export const sin = Math.sin;
-export const cos = Math.cos;
-export const tan = Math.tan;
-export const atan2 = Math.atan2;
-export const max = Math.max;
-export const min = Math.min;
+export const sqrt = Math.sqrt as (x: number) => number;
+export const flr = Math.floor as (x: number) => number;
+export const ceil = Math.ceil as (x: number) => number;
+export const abs = Math.abs as (x: number) => number;
+export const sin = Math.sin as (x: number) => number;
+export const cos = Math.cos as (x: number) => number;
+export const tan = Math.tan as (x: number) => number;
+export const atan2 = Math.atan2 as (x: number) => number;
+export const max = Math.max as (...values: number[]) => number;
+export const min = Math.min as (...values: number[]) => number;
 export const mid = (x: number, y: number, z: number) =>
     Math.min(z, Math.max(x, y));
 export const sgn = (x: number) => (x < 0 ? -1 : 1);
@@ -276,23 +325,29 @@ export const sgn = (x: number) => (x < 0 ? -1 : 1);
 export const math = Math;
 const object = Object;
 export const keys = object.keys as (val: object) => string[];
-export const pairs = (object as any).entries as <T>(
-    o: { [s: string]: T } | arraylike<T>
-) => [string, T][];
-export const entries = (object as any).entries as <T>(
-    o: { [s: string]: T } | arraylike<T>
-) => [string, T][];
-export const values = (object as any).values as <T>(
-    o: { [s: string]: T } | arraylike<T>
-) => T[];
-export function rnd<t>(value: t[]): t;
+export const pairs = (object as any).entries as <t>(
+    o: { [s: string]: t } | arraylike<t>
+) => [string, t][];
+export const entries = (object as any).entries as <t>(
+    o: { [s: string]: t } | arraylike<t>
+) => [string, t][];
+export const values = (object as any).values as <t>(
+    o: { [s: string]: t } | arraylike<t>
+) => t[];
+export function rnd<t>(value: arraylike<t>): t;
 export function rnd(value: string): string;
 export function rnd(value: number): number;
-export function rnd<t>(value: number | string | t[]): number | string | t {
+export function rnd<t>(
+    value: number | string | arraylike<t>
+): number | string | t {
     if (typeof value === 'number') {
         value++;
-        return flr(Math.random() * value);
-    } else if (isarr(value) || typeof value === 'string') {
+        return Math.random() * value;
+    } else if (
+        isarr(value) ||
+        typeof value === 'string' ||
+        typeof value === 'object'
+    ) {
         return value[flr(Math.random() * value.length)] as any;
     }
     throw new Error('unreachable');
@@ -316,9 +371,9 @@ export const storetofile = importExposed('storetofile') as (
     obj: any,
     prefix?: string
 ) => void;
-export const readfromfile = importExposed('readfromfile') as <T>(
+export const readfromfile = importExposed('readfromfile') as <t>(
     prefix?: string
-) => T | undefined;
+) => t | undefined;
 export const addparticle = importExposed('addparticle') as (
     life: number,
     pos: vec2,
@@ -360,7 +415,8 @@ export const imageutils = {
     ) => image,
     circle: importExposed('circle') as (
         radius: number,
-        color: number | string
+        color: number | string,
+        filled?: boolean
     ) => image,
     square: importExposed('square') as (
         width: number,
@@ -436,9 +492,13 @@ export const screen = {
     height: importExposed('height') as number,
     width: importExposed('width') as number,
 };
-export const scene = importExposed('scene') as scene;
+export const scene = importExposed('scene') as {
+    new <t>(scene: userscene<t>): scene;
+};
 export const scenemanager = importExposed('scenemanager') as scenemanager;
-export const gameobject = importExposed('gameobject') as gameobject;
+export const gameobject = importExposed('gameobject') as {
+    new (opts: gameobjopts): gameobject;
+};
 export const createcomponent = importExposed('createcomponent') as <t>(
     component: component<t>,
     data?: partial<t>
@@ -506,14 +566,12 @@ export const textutils = {
     ) => line[],
 };
 
-export type gfxinstrument = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type instrument =
     | 'square-wave'
     | 'sine-wave'
     | 'triangle-wave'
     | 'sawtooth-wave'
-    | 'noise'
-    | `gfx${gfxinstrument}`;
+    | 'noise';
 
 export interface audio {
     channel1: Uint8Array;
@@ -633,7 +691,6 @@ export interface userscene<t> {
     name: string;
 }
 export interface scene {
-    new <t>(scene: userscene<t>): scene;
     objects: gameobject[];
     addobjects(...obj: gameobject[]): void;
     getobjectbyname(name: string): gameobject | undefined;
@@ -673,20 +730,19 @@ export interface gameobjopts {
 }
 
 type componententry<t> = { component: component<t>; config?: partial<t> };
-export interface gameobject {
-    new (opts: gameobjopts): gameobject;
+export interface gameobject<withanis extends boolean = true | false> {
     readonly name: string;
     readonly lifetime: number;
     transform: transform;
-    image: image | animation<image>;
-    mask?: imagemask | animation<imagemask>;
+    image: withanis extends true ? image | animation<image> : image;
+    mask?: withanis extends true ? imagemask | animation<imagemask> : imagemask;
     active: boolean;
     addcomponents<t>(components: componententry<t>[]): void;
     removecomponent(component: string): void;
-    getcomponent<T extends component<any>>(component: string): T | undefined;
-    getcomponentdata<T extends component<any>>(
+    getcomponent<t extends component<any>>(component: string): t | undefined;
+    getcomponentdata<t extends component<any>>(
         component: string
-    ): Required<Parameters<T['init']>[0]> | undefined;
+    ): Required<Parameters<t['init']>[0]> | undefined;
     off(name: string, cb: (obj: gameobject, ...args: any[]) => void): void;
     once(name: string, cb: (obj: gameobject, ...args: any[]) => void): void;
     on(name: string, cb: (obj: gameobject, ...args: any[]) => void): void;
@@ -699,8 +755,18 @@ export interface line {
     start: number;
     end: number;
 }
-
-export function square(
+export function rectfill(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    color: number | string,
+    mask?: imagemask
+) {
+    rect(x, y, width, height, color, mask, true);
+}
+export const square = imageutils.square;
+export function rect(
     x: number,
     y: number,
     width: number,
@@ -713,13 +779,18 @@ export function square(
     height = flr(height);
     x = flr(x);
     y = flr(y);
+    let scale = 1;
+    if (mask && width % mask.width === 0 && height % mask.height === 0) {
+        scale = width / mask.width;
+        width = mask.width;
+        height = mask.height;
+    } else if (mask && (mask.width !== width || mask.height !== height))
+        throw new Error(
+            'the width and height have to be the same or a multiple of the masks width and height'
+        );
     if (height < 1 || width < 1) return;
     if (typeof color === 'string') color = parseInt(color, 32);
     if (!filled) {
-        if (mask && (mask.width !== width || mask.height !== height))
-            throw new Error(
-                'the mask width and height have to be equal to the of the square'
-            );
         const image: image = {
             height,
             width,
@@ -737,18 +808,16 @@ export function square(
                 buf[(height - 2) * width + i] = color;
 
         if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
-        imageutils.putimage(x, y, image);
+        if (scale !== 1) imageutils.putimage(x, y, scaleimg(scale, image));
+        else imageutils.putimage(x, y, image);
     } else {
-        if (mask && (mask.width !== width || mask.height !== height))
-            throw new Error(
-                'the mask width and height have to be equal to the of the square'
-            );
         const image = imageutils.square(width, height, color);
         if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
-        imageutils.putimage(x, y, image);
+        if (scale !== 1) imageutils.putimage(x, y, scaleimg(scale, image));
+        else imageutils.putimage(x, y, image);
     }
 }
-export function circle(
+export function circ(
     x: number,
     y: number,
     radius: number,
@@ -759,7 +828,22 @@ export function circle(
         throw new Error(
             'the mask width and height have to be equal to the radius'
         );
-    const image = imageutils.circle(radius, color);
+    const image = imageutils.circle(radius, color, false);
+    if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
+    imageutils.putimage(x, y, image);
+}
+export function circfill(
+    x: number,
+    y: number,
+    radius: number,
+    color: number | string,
+    mask?: imagemask
+) {
+    if (mask && (mask.width !== radius || mask.height !== radius))
+        throw new Error(
+            'the mask width and height have to be equal to the radius'
+        );
+    const image = imageutils.circle(radius, color, true);
     if (mask) imageutils.applyimagemaskmodifyimage(image, mask);
     imageutils.putimage(x, y, image);
 }
@@ -803,7 +887,9 @@ export function spr(
         scaleimg(scale, image)
     );
 }
-// TODO: implement
+export function sprraw(x: number, y: number, image: image, scale?: number) {
+    spr(x, y, image, scale, true);
+}
 export function del<t>(arr: t[], value: t) {
     if (arr === null || !arr.length) return;
     let firstIndex = arr.indexOf(value);
@@ -832,20 +918,20 @@ export function isarr(value: any) {
     return Array.isArray(value);
 }
 export function font(font?: font | string) {
-    if (!font) {
-        textutils.clearcharmap();
-        textutils.applycharmap(fonts.default);
-    } else if (typeof font !== 'object') {
-        if (!fonts[font]) throw new Error('no font with the name ' + font);
-        textutils.clearcharmap();
-        textutils.applycharmap(fonts[font]);
-    } else {
-        textutils.clearcharmap();
-        textutils.applycharmap(font);
-    }
+    if (typeof font !== 'object' && font && !fonts[font])
+        throw new error('no font with the name ' + font);
+
+    textutils.clearcharmap();
+    textutils.applycharmap(
+        !font ? fonts.default : typeof font !== 'object' ? fonts[font] : font
+    );
 }
-export function pal(palette?: colorpalette) {
-    imageutils.setcurrentpalette(palette || (imageutils.defaultpalette as any));
+export const pal = importExposed('setpalettetranslation') as (
+    color1?: number,
+    color2?: number
+) => void;
+export function palt(color: number, transparent: boolean) {
+    pal(color, transparent ? 0xff : color);
 }
 export function camera(x?: number, y?: number) {
     imageutils.setoffset(x || 0, y || 0);
@@ -863,7 +949,6 @@ export const cls = imageutils.cls;
 export const setp = imageutils.setpixel;
 export interface gamefile {
     name: string;
-    palette?: colorpalette;
 
     init?(): void;
     update?(dt: number): void;
@@ -932,7 +1017,7 @@ export function print(
             { color, background, spaceWidth: spacewidth, centered }
         );
         if (lines.length === 1) cursor(_lines[0].end + 1, _lines[0].y);
-        else cursor(0, cursor_pos.y + 6);
+        else cursor(x !== undefined ? x : 0, cursor_pos.y + 6);
     }
 }
 export function find<t>(
@@ -1080,27 +1165,28 @@ export function type(value: any) {
 export const line = imageutils.line;
 export const getcolorhex = imageutils.getcolor;
 
-interface effect<T> {
-    update(dt: number, val: T, effect: effect<T> & { value: T }): void;
-    init(val: T, effect: effect<T> & { value: T }): void;
-    remove(val: T, effect: effect<T> & { value: T }): void;
+interface effect<t> {
+    update(dt: number, val: t, effect: effect<t> & { value: t }): void;
+    init(val: t, effect: effect<t> & { value: t }): void;
+    remove(val: t, effect: effect<t> & { value: t }): void;
     name: string;
 }
-type effectfunction<T> = effect<T>['update'];
+type effectfunction<t> = effect<t>['update'];
 
 type color = record<'r' | 'g' | 'b' | 'a', number>;
-interface renderer<T> {
+interface renderer<t> {
     update(
         realcolor: color,
         color: number,
-        val: T,
-        renderer: renderer<T> & { value: T }
+        pos: vec2,
+        val: t,
+        renderer: renderer<t> & { value: t }
     ): color;
-    init(val: T, renderer: renderer<T> & { value: T }): void;
-    remove(val: T, renderer: renderer<T> & { value: T }): void;
+    init(val: t, renderer: renderer<t> & { value: t }): void;
+    remove(val: t, renderer: renderer<t> & { value: t }): void;
     name: string;
 }
-type rendererfunction<T> = renderer<T>['update'];
+type rendererfunction<t> = renderer<t>['update'];
 
 export const createeffect = importExposed('createeffect') as <t>(
     name: string,
@@ -1188,7 +1274,7 @@ interface animationbuilder<t> {
 }
 export const getanimationframe = importExposed('getanimationframe') as <t>(
     animation: animation<t>,
-    timeFromStart: number
+    timefromstart: number
 ) => t | undefined;
 export const animationplayer = importExposed('animationplayer') as {
     new <t>(animation: animation<t>): animationplayer<t>;
@@ -1221,3 +1307,10 @@ export const getcurrentimage = importExposed('getcurrentimage') as (
 export const getcurrentimagemask = importExposed('getcurrentimagemask') as (
     obj: gameobject
 ) => imagemask | undefined;
+
+export type returntype<t extends (...args: any) => any> = t extends (
+    ...args: any
+) => infer r
+    ? r
+    : any;
+export const run = importExposed('run') as (code: string) => promise<void>;
